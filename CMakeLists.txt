@@ -4,3 +4,11 @@ project(PDP8)
 add_executable(disasm
   disasm/disasm.c)
 
+target_link_libraries(disasm dislib)
+
+add_executable(emu
+  emu/emu.c)
+
+add_library(dislib STATIC
+  disasm/dislib.c
+)
