@@ -130,7 +130,7 @@ static void oprGroup(Buffer *buf, uint16_t word, const opr_bit *bits) {
 }
 
 static void opr(Buffer *buf, uint16_t word) {
-  printf("OPR ");
+  appendf(buf, "OPR ");
   if ((word & 0400) == 0) {
     oprGroup(buf, word, opr_group1);
   } else if ((word & 0411) == 0400) {
