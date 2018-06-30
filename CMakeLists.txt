@@ -9,6 +9,8 @@ target_link_libraries(disasm dislib)
 add_executable(emu
   emu/emu.c)
 
+target_link_libraries(emu dislib)
+
 add_library(dislib STATIC
   disasm/dislib.c
 )
