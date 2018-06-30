@@ -1,0 +1,6 @@
+DEC-D8-ASAC-PB    12/30/69
+PAL-D Disk System Assembler
+SAVE PALD.' O/-7577;6200(CR)
+DEC Copyright December 1969
+
+(Note:  obviously, .' was supposed to be ! and O/ should be 0)

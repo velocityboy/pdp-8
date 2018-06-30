@@ -1,0 +1,4 @@
+MEM CKBD     TSS8
+ST 7430
+
+(Handwritten, tape is someone's copy of another)

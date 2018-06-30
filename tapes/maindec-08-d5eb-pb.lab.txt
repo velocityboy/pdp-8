@@ -1,0 +1,3 @@
+MAINDEC-08-D5EB-PB   10/3/69
+RF08 Disk Data  (256K)
+DEC Copyright October 1969

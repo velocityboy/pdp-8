@@ -1,0 +1,4 @@
+MAINDEC-08-DITCA-A-PB        5/31/72
+TC01 BASIC EXERCISER
+REPLACES: MAINDEC-08-D3BD-PB
+                                        1972

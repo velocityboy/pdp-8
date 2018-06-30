@@ -1,0 +1,4 @@
+DEC-08-YPTA-PB         11/12/68
+DTC-8 DECTAPE COPY ROUTINE
+FOR COPYING PDP-8,-9 OR 10
+FORMAT                                  1968

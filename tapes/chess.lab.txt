@@ -1,0 +1,8 @@
+PDP-8 CHESS GAME
+
+STARTING ADDRESS:  5000
+
+(Typed label, but not DEC or DECUS, and the tape is light blue)
+(JMBW note:  Moves are entered as 4-digit octal numbers representing
+coordinate pairs of squares before/after piece is moved -- sides are
+numbered 0-7 with the origin in the *computer*'s lower left corner)

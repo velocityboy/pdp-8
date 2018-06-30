@@ -1,0 +1,11 @@
+MAINDEC-08-DHMCA-A-PB   10/15/75  M
+PDP-8E MEMORY EXTENSION
+AND TIME SHARE CONTROL TEST
+REPLACES: MAINDEC-8E-D1HB-PB
+        1971,72
+
+Red ink stamp over label says:
+
+Main dec Change Notice
+may be required for
+program to operate

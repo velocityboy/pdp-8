@@ -1,0 +1,4 @@
+DEC-D8-PDZE-PB   12/30/69
+Disk System PIP-RF08
+Save PIP! 0-5177;1000(C/R)
+DEC Copyright December 1969
