@@ -28,7 +28,7 @@ int main(int argc, char **argv) {
   size_t words = len / 2;
 
   for (size_t i = 0; i < words; i++) {
-    wordBuffer[i] = (byteBuffer[2*i+1] << 8) | byteBuffer[2*i];
+    wordBuffer[i] = (byteBuffer[2*i] << 6) | byteBuffer[2*i+1];
   }
   free(byteBuffer);
 

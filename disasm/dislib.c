@@ -9,6 +9,31 @@ typedef struct Buffer {
   int overflow;
 } Buffer;
 
+typedef struct Iot {
+  uint16_t opcode;
+  char *mnemonic;
+} Iot;
+
+static Iot knownIots[] = {
+  { 06010, "RPE" },
+  { 06011, "RSF" },
+  { 06012, "RRB" },
+  { 06013, "RRB RSF" },
+  { 06014, "RFC" },
+  { 06015, "RFC RSF" },
+  { 06016, "RRB RFC" },
+  { 06017, "RFC RRB RSF "},
+
+  // these are for the console TTY
+  { 06030, "KCF" },
+  { 06031, "KSF" },
+  { 06032, "KCC" },
+  { 06034, "KRS" },
+  { 06035, "KIE" },
+  { 06036, "KRB" },
+  { 0, NULL },
+};
+
 static const int MEM_OPS = 6;
 static const int IOT_OP = 6;
 static const int OPR_OP = 7;
@@ -19,7 +44,7 @@ static char *memOps[MEM_OPS] = {
 static const int OPCODE_SHIFT = 9;
 static const int OPCODE_MASK = 07;
 
-static void memoryOp(Buffer *buf, const char *opcode, uint16_t word);
+static void memoryOp(Buffer *buf, const char *opcode, uint16_t word, uint16_t pc);
 static void iot(Buffer *buf, uint16_t word);
 static void opr(Buffer *buf, uint16_t word);
 static void appendf(Buffer *buffer, char *fmt, ...);
@@ -37,7 +62,7 @@ int pdp8Disassemble(uint16_t addr, uint16_t op, char *decoded, int decodedLen) {
 
   int opcode = (op >> OPCODE_SHIFT) & OPCODE_MASK;
   if (opcode < MEM_OPS) {
-    memoryOp(&buf, memOps[opcode], op);
+    memoryOp(&buf, memOps[opcode], op, addr);
   } else if (opcode == IOT_OP) {
     iot(&buf, op);
   } else if (opcode == OPR_OP) {
@@ -47,22 +72,30 @@ int pdp8Disassemble(uint16_t addr, uint16_t op, char *decoded, int decodedLen) {
   return buf.overflow ? -1 : 0;
 }
 
-static void memoryOp(Buffer *buf, const char *opcode, uint16_t word) {
-  uint16_t pcRelative = word & 0x0080;
+static void memoryOp(Buffer *buf, const char *opcode, uint16_t word, uint16_t pc) {
+  uint16_t pcRelative = word & 0x0080;  
   uint16_t indirect = word & 0x0100;
+  uint16_t target = word & 0177;
 
   appendf(buf, "%s ", opcode);
   if (pcRelative) {
-    appendf(buf, "PC ");
+    target |= (pc & 07600);
   }
   if (indirect) {
     appendf(buf, "I ");
   }
 
-  appendf(buf, "%03o", word & 0177);
+  appendf(buf, "%04o", target);
 }
 
 static void iot(Buffer *buf, uint16_t word) {
+  for (int i = 0; knownIots[i].mnemonic; i++) {
+    if (knownIots[i].opcode == word) {
+      appendf(buf, "%s", knownIots[i].mnemonic);
+      return;
+    }
+  }
+
   appendf(buf, "device=%o,func=%o", (int)((word >> 3) & 077), (int)(word & 07));
 }
 
@@ -76,9 +109,6 @@ static opr_bit opr_group1[] = {
   { 0100, "CLL" },
   { 0040, "CMA" },
   { 0020, "CML" },
-  { 0010, "RAR" },
-  { 0004, "RAL" },
-  { 0002, "BSW" },
   { 0001, "IAC" },
   { 0, NULL },
 };
@@ -129,10 +159,27 @@ static void oprGroup(Buffer *buf, uint16_t word, const opr_bit *bits) {
   }
 }
 
+static void oprGroup1(Buffer *buf, uint16_t word) {
+  oprGroup(buf, word, opr_group1);
+
+  if ((word & 0014) == 0) {
+    if (word & 0002) {
+      appendf(buf, "BSW ");
+    }
+  } else {
+    int byTwo = word & 0002;
+    if (word & 0004) {
+      appendf(buf, byTwo ? "RLT " : "RAL ");
+    }
+    if (word & 0010) {
+      appendf(buf, byTwo ? "RRT " : "RAR ");
+    }
+  }
+}
+
 static void opr(Buffer *buf, uint16_t word) {
-  appendf(buf, "OPR ");
   if ((word & 0400) == 0) {
-    oprGroup(buf, word, opr_group1);
+    oprGroup1(buf, word);
   } else if ((word & 0411) == 0400) {
     oprGroup(buf, word, opr_group2_or);
   } else if ((word & 0411) == 0410) {

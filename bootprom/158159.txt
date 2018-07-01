@@ -1,0 +1,128 @@
+0000 LA       : 0000
+0002   LX  ST : 0000
+0004 LA       : 0200
+0006   LX  ST : 0000
+0010 LA       : 2000
+0012   LX  ST : 0000
+0014 LA       : 4200
+0016   LX  ST : 0000
+0020 LA       : 7737
+0022   LX     : 0000
+0024     DE   : 6014 | 07737 6014 RFC             ; clear reader flag & read
+0026     DE   : 3376 | 07740 3376 DCA 7776        ; clear AC and 7776
+0030     DE   : 7326 | 07741 7326 CLA CLL CML RLT ; AC=2
+0032     DE   : 1337 | 07742 1337 TAD 7737        ; AC=RRB RFC (6016) 
+0034     DE   : 2376 | 07743 2376 ISZ 7776        ; wait to see if we get a byte
+0036     DE   : 5341 | 07744 5341 JMP 7741        ; ...
+0040     DE   : 6011 | 07745 6011 RSF             ; if we did, we have a high speed reader (and a byte)
+0042     DE   : 5356 | 07746 5356 JMP 7756        ; if not, use TTY reader
+0044     DE   : 3361 | 07747 3361 DCA 7761        ; change KRB -> RRB RFC
+0046     DE   : 1361 | 07750 1361 TAD 7761        ; AC=RFC
+0050     DE   : 3371 | 07751 3371 DCA 7771        ; change KRS => RFC
+0052     DE   : 1345 | 07752 1345 TAD 7745        ; AC=RFS
+0054     DE   : 3357 | 07753 3357 DCA 7757        ; change KSF => RSF
+0056     DE   : 1345 | 07754 1345 TAD 7745        ; AC=RFS
+0060     DE   : 3367 | 07755 3367 DCA 7767        ; change KSF => RSF
+0062     DE   : 6032 | 07756 6032 KCC             ; keyboard clear and read 
+0064     DE   : 6031 | 07757 6031 KSF             ; KSF/RSF - skip if char avail
+0066     DE   : 5357 | 07760 5357 JMP 7757        ; wait for it
+0070     DE   : 6036 | 07761 6036 KRB             ; KRB/RRB RFC -> byte into AC
+0072     DE   : 7106 | 07762 7106 CLL RLT         ; AC shift left
+0074     DE   : 7006 | 07763 7006 RLT             ;   total of 4
+0076     DE   : 7510 | 07764 7510 SPA             ; skip if high bit wasn't set
+0100     DE   : 5374 | 07765 5374 JMP 7774        ; go save as address
+0102     DE   : 7006 | 07766 7006 RLT             ; 6 bites of orig byte in top of AC
+0104     DE   : 6031 | 07767 6031 KSF             ; wait for next
+0106     DE   : 5367 | 07770 5367 JMP 7767        ;  byte
+0110     DE   : 6034 | 07771 6034 KRS             ; KRS/RFC -> read next character
+0112     DE   : 7420 | 07772 7420 SNL             ; Skip if next to top bit was set in control
+0114     DE   : 3776 | 07773 3776 DCA I 7776      ; deposit word
+0116     DE   : 3376 | 07774 3376 DCA 7776        ; set address to deposit
+0120     DE   : 5356 | 07775 5356 JMP 7756        ; keep reading
+0122 LA    ST : 7737
+0124 LA       : 0023
+0126   LX     : 0000
+0130     DE   : 2200 | 00023 2200 ISZ 0000
+0132     DE   : 6745 | 00024 6745 device=74,func=5
+0134     DE   : 0023 | 00025 0023 AND 0023
+0136     DE   : 7640 | 00026 7640 CLA SZA 
+0140     DE   : 5024 | 00027 5024 JMP 0024
+0142     DE   : 6743 | 00030 6743 device=74,func=3
+0144     DE   : 5031 | 00031 5031 JMP 0031
+0146 LA    ST : 0024
+0150 LA       : 0024
+0152   LX     : 0000
+0154     DE   : 7126 | 00024 7126 CLL CML RLT 
+0156     DE   : 1060 | 00025 1060 TAD 0060
+0160     DE   : 6751 | 00026 6751 device=75,func=1
+0162     DE   : 7201 | 00027 7201 CLA IAC 
+0164     DE   : 4053 | 00030 4053 JMS 0053
+0166     DE   : 4053 | 00031 4053 JMS 0053
+0170     DE   : 7104 | 00032 7104 CLL RAL 
+0172     DE   : 6755 | 00033 6755 device=75,func=5
+0174     DE   : 5054 | 00034 5054 JMP 0054
+0176     DE   : 6754 | 00035 6754 device=75,func=4
+0200     DE   : 7450 | 00036 7450 SNA 
+0202     DE   : 7610 | 00037 7610 CLA 
+0204     DE   : 5046 | 00040 5046 JMP 0046
+0206     DE   : 1060 | 00041 1060 TAD 0060
+0210     DE   : 7041 | 00042 7041 CMA IAC 
+0212     DE   : 1061 | 00043 1061 TAD 0061
+0214     DE   : 3060 | 00044 3060 DCA 0060
+0216     DE   : 5024 | 00045 5024 JMP 0024
+0220     DE   : 6751 | 00046 6751 device=75,func=1
+0222     DE   : 4053 | 00047 4053 JMS 0053
+0224     DE   : 3002 | 00050 3002 DCA 0002
+0226     DE   : 2050 | 00051 2050 ISZ 0050
+0230     DE   : 5047 | 00052 5047 JMP 0047
+0232     DE   : 0000 | 00053 0000 AND 0000
+0234     DE   : 6753 | 00054 6753 device=75,func=3
+0236     DE   : 5033 | 00055 5033 JMP 0033
+0240     DE   : 6752 | 00056 6752 device=75,func=2
+0242     DE   : 5453 | 00057 5453 JMP I 0053
+0244     DE   : 7024 | 00060 7024 CML RAL 
+0246     DE   : 6030 | 00061 6030 KCF
+0250 LA    ST : 0033
+0252 LA       : 7750
+0254   LX     : 0000
+0256     DE   : 7600 | 07750 7600 CLA 
+0260     DE   : 6603 | 07751 6603 device=60,func=3
+0262     DE   : 6622 | 07752 6622 device=62,func=2
+0264     DE   : 5352 | 07753 5352 JMP 7752
+0266     DE   : 5752 | 07754 5752 JMP I 7752
+0270 LA    ST : 7750
+0272 LA       : 4000
+0274   LX     : 0000
+0276     DE   : 1237 | 04000 1237 TAD 4037
+0300     DE   : 1206 | 04001 1206 TAD 4006
+0302     DE   : 6704 | 04002 6704 device=70,func=4
+0304     DE   : 6706 | 04003 6706 device=70,func=6
+0306     DE   : 6703 | 04004 6703 device=70,func=3
+0310     DE   : 5204 | 04005 5204 JMP 4004
+0312     DE   : 7264 | 04006 7264 CLA CMA CML RAL 
+0314     DE   : 6702 | 04007 6702 device=70,func=2
+0316     DE   : 7610 | 04010 7610 CLA 
+0320     DE   : 3211 | 04011 3211 DCA 4011
+0322     DE   : 3636 | 04012 3636 DCA I 4036
+0324     DE   : 1205 | 04013 1205 TAD 4005
+0326     DE   : 6704 | 04014 6704 device=70,func=4
+0330     DE   : 6706 | 04015 6706 device=70,func=6
+0332     DE   : 6701 | 04016 6701 device=70,func=1
+0334     DE   : 5216 | 04017 5216 JMP 4016
+0336     DE   : 7002 | 04020 7002 BSW 
+0340     DE   : 7430 | 04021 7430 SZL 
+0342     DE   : 1636 | 04022 1636 TAD I 4036
+0344     DE   : 7022 | 04023 7022 CML BSW 
+0346     DE   : 3636 | 04024 3636 DCA I 4036
+0350     DE   : 7420 | 04025 7420 SNL 
+0352     DE   : 2236 | 04026 2236 ISZ 4036
+0354     DE   : 2235 | 04027 2235 ISZ 4035
+0356     DE   : 5215 | 04030 5215 JMP 4015
+0360     DE   : 7346 | 04031 7346 CLA CLL CMA RLT 
+0362     DE   : 7002 | 04032 7002 BSW 
+0364     DE   : 3235 | 04033 3235 DCA 4035
+0366     DE   : 5201 | 04034 5201 JMP 4001
+0370     DE   : 7737 | 04035 7737 CLA MQA MQL SCL DIV SHL LSR CLA CLL CML IAC LSR
+0372     DE   : 3557 | 04036 3557 DCA I 0157
+0374     DE   : 7730 | 04037 7730 CLA SPA SZL 
+0376 LA    ST : 4000

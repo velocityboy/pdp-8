@@ -14,3 +14,8 @@ target_link_libraries(emu dislib)
 add_library(dislib STATIC
   disasm/dislib.c
 )
+
+add_executable(dumppair bootprom/dumppair.c)
+target_link_libraries(dumppair dislib)
+
+add_executable(ptrim ptrim/ptrim.c)
