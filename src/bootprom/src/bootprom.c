@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "pdp8/dislib.h"
+#include "pdp8/emulator.h"
 
 typedef struct {
   long size;
@@ -82,7 +82,7 @@ int main(int argc, char **argv) {
 
     if (word & OP_DEPOSIT) {
       char disasm[100];
-      pdp8Disassemble(addr, word & 07777, disasm, sizeof(disasm));
+      pdp8_disassemble(addr, word & 07777, disasm, sizeof(disasm));
       printf(" | %s", disasm);
       addr++;
     }

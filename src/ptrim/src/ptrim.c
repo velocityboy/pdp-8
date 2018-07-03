@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "pdp8/dislib.h"
+#include "pdp8/emulator.h"
 
 static uint16_t rim[] = {
     06014,                      /* 7756, RFC */
@@ -112,7 +112,7 @@ L7774:
 
   for (int addr = 0; addr <= 07777; addr++) {
     char line[200];
-    pdp8Disassemble((uint16_t)addr, core[addr], line, sizeof(line));
+    pdp8_disassemble((uint16_t)addr, core[addr], line, sizeof(line));
     printf("%s\n", line);
   }
 

@@ -1,7 +1,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "pdp8/dislib.h"
+#include "pdp8/emulator.h"
 
 typedef struct Buffer {
   char *next;
@@ -49,7 +49,7 @@ static void iot(Buffer *buf, uint16_t word);
 static void opr(Buffer *buf, uint16_t word);
 static void appendf(Buffer *buffer, char *fmt, ...);
 
-int pdp8Disassemble(uint16_t addr, uint16_t op, char *decoded, int decodedLen) {
+int pdp8_disassemble(uint16_t addr, uint16_t op, char *decoded, int decodedLen) {
   Buffer buf; 
   buf.next = decoded;
   buf.remainingLen = decodedLen;

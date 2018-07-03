@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "pdp8/dislib.h"
+#include "pdp8/emulator.h"
 
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -34,7 +34,7 @@ int main(int argc, char **argv) {
 
   for (size_t i = 0; i < words; i++) {
     char decoded[100];
-    pdp8Disassemble(i, wordBuffer[i], decoded, sizeof(decoded));
+    pdp8_disassemble(i, wordBuffer[i], decoded, sizeof(decoded));
     printf("%s\n", decoded);
   }
 

@@ -1,7 +1,8 @@
 project(src)
 
 add_library(pdp8
-  pdp8/src/dislib.c)
+  pdp8/src/dislib.c
+  pdp8/src/pdp8_cpu.c)
 
 target_include_directories(pdp8
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
