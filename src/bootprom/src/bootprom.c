@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "../disasm/dislib.h"
+#include "pdp8/dislib.h"
 
 typedef struct {
   long size;

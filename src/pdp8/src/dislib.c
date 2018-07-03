@@ -1,7 +1,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "dislib.h"
+#include "pdp8/dislib.h"
 
 typedef struct Buffer {
   char *next;

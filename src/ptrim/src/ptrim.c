@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "../disasm/dislib.h"
+#include "pdp8/dislib.h"
 
 static uint16_t rim[] = {
     06014,                      /* 7756, RFC */

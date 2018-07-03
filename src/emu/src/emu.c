@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../disasm/dislib.h"
+#include "pdp8/dislib.h"
 
 #define CORE_SIZE 4096 /* 12-bit words */
 

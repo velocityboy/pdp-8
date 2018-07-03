@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "dislib.h"
+#include "pdp8/dislib.h"
 
 int main(int argc, char **argv) {
   if (argc != 2) {
