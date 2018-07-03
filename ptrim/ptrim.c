@@ -1,9 +1,44 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
+
+#include "../disasm/dislib.h"
+
+static uint16_t rim[] = {
+    06014,                      /* 7756, RFC */
+    06011,                      /* 7757, LOOP, RSF */
+    05357,                      /* JMP .-1 */
+    06016,                      /* RFC RRB */
+    07106,                      /* CLL RTL*/
+    07006,                      /* RTL */
+    07106,                      /* CLL RTL*/
+    07006,                      /* RTL */
+    07510,                      /* SPA*/
+    05374,                      /* JMP 7774 */
+    07006,                      /* RTL */
+    06011,                      /* RSF */
+    05367,                      /* JMP .-1 */
+    06016,                      /* RFC RRB */
+    07420,                      /* SNL */
+    03776,                      /* DCA I 7776 */
+    03376,                      /* 7774, DCA 7776 */
+    05357,                      /* JMP 7757 */
+    00000,                      /* 7776, 0 */
+    05301                       /* 7777, JMP 7701 */
+};
+
+static uint16_t rimStart = 07756;
+static int rimWords = sizeof(rim)/sizeof(rim[0]);
 
 int main(int argc, char *argv[]) {
   uint16_t core[4096];
+
+  memset(core, 0, sizeof(core));
+
+  for (int i = 0; i < rimWords; i++) {
+    core[rimStart+i] = rim[i];
+  }
 
   if (argc != 2) {
     fprintf(stderr, "ptrim paper-tape\n\tSimulates RIM loader\n");
@@ -28,8 +63,7 @@ int main(int argc, char *argv[]) {
     /* 7760 05357 JMP .-1 ; until byte read */
     int ch = fgetc(fp);
     if (ch == EOF) {
-      fprintf(stderr, "Premature EOF\n");
-      return 3;
+      break;
     }
 
     /* 7761 06016 RFC RRB ; read byte */
@@ -55,8 +89,7 @@ int main(int argc, char *argv[]) {
     /* 7770 05367 JMP .-1 ; wait until reader ready */
     ch = fgetc(fp);
     if (ch == EOF) {
-      fprintf(stderr, "Premature EOF\n");
-      return 3;
+      break;
     }
 
     /* 7771 06016 RFC RRB ; read byte */
@@ -65,41 +98,30 @@ int main(int argc, char *argv[]) {
     /* 7772 07420 SNL ; skip if link set */
     if ((ac & LINK_BIT) == 0) {
       /* 7773 03776 DCA I 7776 ; store word and clear AC */
-      printf("store %4o into %4o\n", ac & 07777, core[07776]);
-      core[core[07776]] = ac & 0x07777;
+      int at = core[07776];
+      core[at] = ac & 07777;
       ac = 0;
     }
 L7774:
     /* 7774 03376 DCA 7776 ; store AC (ptr) in 7776 */
-    core[07776] = ac;
+    core[07776] = ac & 07777;
     ac = 0;
 
     /* 7775 5357 JMP 7757 */
   }
+
+  for (int addr = 0; addr <= 07777; addr++) {
+    char line[200];
+    pdp8Disassemble((uint16_t)addr, core[addr], line, sizeof(line));
+    printf("%s\n", line);
+  }
+
+
+
 
   return 0;
 }
 
 #if 0
 // paper tape RIM loader 
-    06014,                      /* 7756, RFC */
-    06011,                      /* 7757, LOOP, RSF */
-    05357,                      /* JMP .-1 */
-    06016,                      /* RFC RRB */
-    07106,                      /* CLL RTL*/
-    07006,                      /* RTL */
-    07106,                      /* CLL RTL*/
-    07006,                      /* RTL */
-    07510,                      /* SPA*/
-    05374,                      /* JMP 7774 */
-    07006,                      /* RTL */
-    06011,                      /* RSF */
-    05367,                      /* JMP .-1 */
-    06016,                      /* RFC RRB */
-    07420,                      /* SNL */
-    03776,                      /* DCA I 7776 */
-    03376,                      /* 7774, DCA 7776 */
-    05357,                      /* JMP 7757 */
-    00000,                      /* 7776, 0 */
-    05301                       /* 7777, JMP 7701 */
 #endif

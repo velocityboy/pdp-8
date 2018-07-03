@@ -29,13 +29,13 @@
 0070     DE   : 6036 | 07761 6036 KRB             ; KRB/RRB RFC -> byte into AC
 0072     DE   : 7106 | 07762 7106 CLL RLT         ; AC shift left
 0074     DE   : 7006 | 07763 7006 RLT             ;   total of 4
-0076     DE   : 7510 | 07764 7510 SPA             ; skip if high bit wasn't set
-0100     DE   : 5374 | 07765 5374 JMP 7774        ; go save as address
+0076     DE   : 7510 | 07764 7510 SPA             ; if high bit set
+0100     DE   : 5374 | 07765 5374 JMP 7774        ;   skip leader punches
 0102     DE   : 7006 | 07766 7006 RLT             ; 6 bites of orig byte in top of AC
 0104     DE   : 6031 | 07767 6031 KSF             ; wait for next
 0106     DE   : 5367 | 07770 5367 JMP 7767        ;  byte
 0110     DE   : 6034 | 07771 6034 KRS             ; KRS/RFC -> read next character
-0112     DE   : 7420 | 07772 7420 SNL             ; Skip if next to top bit was set in control
+0112     DE   : 7420 | 07772 7420 SNL             ; skip if next to top bit was set in control
 0114     DE   : 3776 | 07773 3776 DCA I 7776      ; deposit word
 0116     DE   : 3376 | 07774 3376 DCA 7776        ; set address to deposit
 0120     DE   : 5356 | 07775 5356 JMP 7756        ; keep reading

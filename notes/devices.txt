@@ -1,0 +1,53 @@
+00 - CPU interrupt control
+01 - high speed reader in
+02 - high speed punch out
+03 - TTY in
+04 - TTY out
+05 - point/plot display
+05 - digital writing tablet (part A)
+06 - digital writing tablet (part B)
+07 - digital writing tablet (part C)
+11 - Reundancy check option (CRC's)
+11 - 8 channel TTY (part A)
+12 - 8 channel TTY (part B)
+2x - memory extension control
+30 - VT78#1 in
+31 - VT78#1 out
+32 - VT78#2 in
+33 - VT78#2 out
+35 - Universal digital controller (part A)
+36 - Universal digital controller (part B)
+36 - general purpose interface unit (part A)
+37 - general purpose interface unit (part B)
+4x - TTY lines (even = in, odd = out)
+50 - X/Y plotter
+53 - A/D converter
+53 - low level A/D subsystem (part A)
+54 - low level A/D subsystem (part B)
+54 - scanning voltmeter (part A)
+55 - floating point processor
+55 - D/A converter (part A)
+56 - D/A converter (part B)
+56 - scanning voltmeter (part B)
+5x - multiplexed digital I/O
+5x - interprocessor channel
+60 - DF32 (part A)
+61 - DF32 (part B)
+62 - DF32 (part C)
+61 - RF08 (part A)
+62 - RF08 (part B)
+63 - card reader (part A)
+64 - RF08 (part C)
+65 - Serial printer in
+66 - Serial printer out
+67 - card reader (part B)
+7x - DECtape
+7x - RX01 diskette
+70 - TC58 (part A)
+71 - TC58 (part B)
+72 - TC58 (part C)
+73 - RK01 (part A)
+74 - RK01 (part B)
+75 - RK01 (part C)
+
+

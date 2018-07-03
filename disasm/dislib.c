@@ -89,6 +89,48 @@ static void memoryOp(Buffer *buf, const char *opcode, uint16_t word, uint16_t pc
 }
 
 static void iot(Buffer *buf, uint16_t word) {
+  if ((word & 0700) == 0200) {
+    /* memory extension control */
+    int field = (word & 0070) >> 3;
+    int func = word & 0007;
+
+    static char *func4ops[] = {
+      "CINT",
+      "RDF",
+      "RIF",
+      "RIB",
+      "RMF",
+      "SINT",
+      "CUF",
+      "SUF",      
+    };
+
+    switch (func) {
+      case 1:
+        appendf(buf, "CDF %d", field);
+        break;
+
+      case 2:
+        appendf(buf, "CIF %d", field);
+        break;
+
+      case 3:
+        appendf(buf, "CDF CIF %d", field);
+        break;
+
+      case 4:
+        appendf(buf, "%s", func4ops[field]);
+        break;
+
+      default:
+        appendf(buf, "device=%o,func=%o", (int)((word >> 3) & 077), (int)(word & 07));
+        break;
+    }
+    return;
+  }
+
+
+
   for (int i = 0; knownIots[i].mnemonic; i++) {
     if (knownIots[i].opcode == word) {
       appendf(buf, "%s", knownIots[i].mnemonic);
