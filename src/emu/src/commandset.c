@@ -18,15 +18,15 @@ void execute_command(char *command, command_t *command_set) {
     }
 
     char *start = command;
-    while (!isspace(*command)) {
+    while (*command && !isspace(*command)) {
         command++;
     }
 
-    char *tail = NULL;
     if (*command) {
         *command++ = '\0';
-        tail = command;
     }
+    char *tail = command;
+    
 
     for (command_t *p = command_set; p->command != NULL; p++) {
         if (strcasecmp(start, p->command) == 0 || strcasecmp(start, p->abbrev) == 0) {

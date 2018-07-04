@@ -16,7 +16,10 @@ target_link_libraries(disasm pdp8)
 add_executable(bootprom bootprom/src/bootprom.c)
 target_link_libraries(bootprom pdp8)
 
-add_executable(emu emu/src/emu.c emu/src/commandset.c)
+add_executable(emu 
+  emu/src/emu.c 
+  emu/src/commandset.c
+  emu/src/options.c)
 target_link_libraries(emu pdp8)
 
 add_executable(ptrim ptrim/src/ptrim.c)

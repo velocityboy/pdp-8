@@ -22,6 +22,7 @@ struct pdp8_t {
     uint12_t ac;
     unsigned link : 1;
     unsigned run : 1;
+    unsigned option_eae : 1;        /* Type 182 extended arithmetic element (i.e. mul and div) */
     uint12_t pc;
     uint12_t sr;        /* front panel switches */
     device_handler_t device_handlers[PDP8_DEVICE_IDS];

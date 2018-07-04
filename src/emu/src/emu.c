@@ -8,11 +8,11 @@
 
 #include "pdp8/emulator.h"
 #include "commandset.h"
+#include "options.h"
 
 static inline int min(int x, int y) { return x < y ? x : y; }
 static inline int isodigit(char ch) { return ch >= '0' && ch <= '7'; }
 
-static int octal(char **);
 static void unassemble(char *);
 static void registers(char *);
 static void set(char *);
@@ -21,9 +21,15 @@ static void deposit(char *);
 static void examine(char *);
 static void exit_(char *);
 static void help(char *);
+static void enable(char*);
+
+static int octal(char **);
+static char *trim(char *str);
+    
 
 static command_t commands[] = {
     { "deposit",    "d",  "xxxx dd [dd ...]", &deposit },
+    { "enable",     "en", "option-name (lists options with no args)", &enable},
     { "examine",    "ex", "xxxxx[-yyyyy] examine core", &examine},
     { "exit",       "q",  "exit the emulator", &exit_},
     { "help",       "h",  "display help for all commands", &help},
@@ -44,7 +50,7 @@ int main(int argc, char *argv[]) {
         if (fgets(command, sizeof(command), stdin) == NULL) {
             break;
         }
-        execute_command(command, commands);
+        execute_command(trim(command), commands);
     }
 }
 
@@ -63,10 +69,6 @@ static void help(char *tail) {
 }
 
 static void examine(char *tail) {
-    while (isspace(*tail)) {
-        tail++;
-    }
-
     int start = 0;
     int end = 0;
     int consumed = 0;
@@ -113,10 +115,6 @@ static void examine(char *tail) {
 }
 
 static void unassemble(char *tail) {
-    while (isspace(*tail)) {
-        tail++;
-    }
-
     int start = 0;
     int end = 0;
     int consumed = 0;
@@ -168,10 +166,6 @@ static void step(char *tail) {
 }
 
 static void set(char *tail) {
-    while (isspace(*tail)) {
-        tail++;
-    }
-
     char regname[20];
     int value;
     int consumed;
@@ -206,10 +200,6 @@ static void set(char *tail) {
 }
 
 static void deposit(char *tail) {
-    while (isspace(*tail)) {
-        tail++;
-    }
-    
     if (!isodigit(*tail)) {
         printf("deposit: invalid parameters\n");
         return;
@@ -246,6 +236,22 @@ static void deposit(char *tail) {
     }
 }
 
+static void enable(char *name) {
+    if (*name == '\0') {
+        printf("available options:\n\t");
+        char **options = get_option_names();
+        for (; *options; options++) {
+            printf("%s ", *options);
+        }
+        printf("\n");
+        return;
+    }
+
+    if (enable_option(name, pdp8) == -1) {
+        printf("failed to enable option \"%s\"\n", name);
+    }
+}
+
 static int octal(char **str) {
     int out = 0;
 
@@ -255,4 +261,23 @@ static int octal(char **str) {
     }
 
     return out;
+}
+
+static char *trim(char *str) {
+    char *p = str;
+    while (isspace(*p)) {
+        p++;
+    }
+
+    if (!*p) {
+        return p;
+    }
+
+    char *q = p + strlen(p);
+    while (isspace(q[-1])) {
+        q--;
+    }
+
+    *q = '\0';
+    return p;
 }
