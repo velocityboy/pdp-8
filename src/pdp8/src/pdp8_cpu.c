@@ -101,14 +101,14 @@ void pdp8_step(pdp8_t *pdp8) {
         }
 
         case PDP8_OP_OPR:
-            if (PDP8_OPR_GROUP1(op)) {
-                group_1(op, pdp8);
-            } else if (PDP8_OPR_GROUP2_OR(op)) {
-                group_2_or(op, pdp8);
-            } else if (PDP8_OPR_GROUP2_AND(op)) {
-                group_2_and(op, pdp8);
-            } else if (PDP8_OPR_GROUP3(op)) {
-                group3(op, pdp8);
+            if (PDP8_OPR_GROUP1(opword)) {
+                group_1(opword, pdp8);
+            } else if (PDP8_OPR_GROUP2_OR(opword)) {
+                group_2_or(opword, pdp8);
+            } else if (PDP8_OPR_GROUP2_AND(opword)) {
+                group_2_and(opword, pdp8);
+            } else if (PDP8_OPR_GROUP3(opword)) {
+                group3(opword, pdp8);
             }
             break;
     }
@@ -154,10 +154,10 @@ static void group_1(uint12_t op, pdp8_t *pdp8) {
      */
     if ((op & PDP8_OPR_GRP1_IAC) != 0) { pdp8->ac = (pdp8->ac + 1) & MASK12; }
  
-     uint12_t shift = op & (PDP8_OPR_GRP1_RAL | PDP8_OPR_GRP1_RAR);
+    uint12_t shift = op & (PDP8_OPR_GRP1_RAL | PDP8_OPR_GRP1_RAR);
  
-     int by = ((op & PDP8_OPR_GRP1_RTWO) != 0) ? 2 : 1;
-     if (shift == 0) {
+    int by = ((op & PDP8_OPR_GRP1_RTWO) != 0) ? 2 : 1;
+    if (shift == 0) {
         /* model specific - on 8/E and later, the double-shift bit by itself
          * swaps the low and high 6 bits of AC
          */       

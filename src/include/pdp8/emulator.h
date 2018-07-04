@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+#include "pdp8/defines.h"
+
 typedef uint16_t uint12_t;
 typedef struct pdp8_t pdp8_t;
 
@@ -31,5 +33,6 @@ extern void pdp8_step(pdp8_t *pdp8);
 
 /* utilities */
 extern int pdp8_disassemble(uint16_t addr, uint12_t op, char *decoded, int decodedLen);
+extern pdp8_reg_t pdp8_reg_from_string(char *s);
 
 #endif

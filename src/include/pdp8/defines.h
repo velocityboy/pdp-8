@@ -26,6 +26,16 @@
 #define PDP8_STD_CORE_WORDS 4096
 #define PDP8_MEX_CORE_WORDS 32768
 
+/* registers */
+typedef enum pdp8_reg_t {
+    REG_INVALID = -1,
+    REG_AC,
+    REG_PC,
+    REG_LINK,
+    REG_RUN,
+    REG_SR,
+} pdp8_reg_t;
+
 /* instructions */
 typedef enum pdp8_op_t {
     PDP8_OP_AND = 00,
@@ -38,7 +48,7 @@ typedef enum pdp8_op_t {
     PDP8_OP_OPR = 07,
 } pdp8_op_t;
 
-#define PDP8_OP(w) (((w) >> 9) & 03)
+#define PDP8_OP(w) (((w) >> 9) & 07)
 
 /* memory instruction layout */
 #define PDP8_M_IND(w) ((w) & BIT3)
