@@ -6,6 +6,10 @@ add_library(pdp8
   pdp8/src/pdp8_eae.c
   pdp8/src/pdp8_util.c)
 
+add_executable(pdp8_tests
+  pdp8/tests/testmain.c
+  pdp8/tests/test_cpu.c)
+
 target_include_directories(pdp8
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
