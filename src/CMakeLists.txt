@@ -3,6 +3,7 @@ project(src)
 add_library(pdp8
   pdp8/src/dislib.c
   pdp8/src/pdp8_cpu.c
+  pdp8/src/pdp8_eae.c
   pdp8/src/pdp8_util.c)
 
 target_include_directories(pdp8

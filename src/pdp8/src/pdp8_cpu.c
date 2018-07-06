@@ -1,13 +1,14 @@
+#include <stdlib.h>
+
 #include "pdp8/defines.h"
 #include "pdp8/emulator.h"
 
-#include <stdlib.h>
+#include "pdp8_eae.h"
 
 static uint12_t effective_address(uint12_t op, pdp8_t *pdp8);
 static void group_1(uint12_t op, pdp8_t *pdp8);
 static void group_2_and(uint12_t op, pdp8_t *pdp8);
 static void group_2_or(uint12_t op, pdp8_t *pdp8);
-static void group3(uint12_t op, pdp8_t *pdp8);
 
 /*
  * Create a new emulator instance.
@@ -107,8 +108,8 @@ void pdp8_step(pdp8_t *pdp8) {
                 group_2_or(opword, pdp8);
             } else if (PDP8_OPR_GROUP2_AND(opword)) {
                 group_2_and(opword, pdp8);
-            } else if (PDP8_OPR_GROUP3(opword)) {
-                group3(opword, pdp8);
+            } else if (PDP8_OPR_GROUP3(opword) && pdp8->option_eae) {
+                pdp8_group3(opword, pdp8);
             }
             break;
     }
@@ -143,16 +144,28 @@ static void group_1(uint12_t op, pdp8_t *pdp8) {
     /* CLA, CLL, CMA, CLL are all in event slot 1, but STL is CLL + CML, so
      * the clears must apply first.
      */
-    if ((op & PDP8_OPR_CLA) != 0) { pdp8->ac = 0; }
-    if ((op & PDP8_OPR_GRP1_CLL) != 0) { pdp8->link = 0; }
+    if ((op & PDP8_OPR_CLA) != 0) { 
+        pdp8->ac = 0; 
+    }
+    
+    if ((op & PDP8_OPR_GRP1_CLL) != 0) {
+         pdp8->link = 0; 
+    }
  
-    if ((op & PDP8_OPR_GRP1_CMA) != 0) { pdp8->ac ^= 07777; }
-    if ((op & PDP8_OPR_GRP1_CML) != 0) { pdp8->link = ~pdp8->link; }
+    if ((op & PDP8_OPR_GRP1_CMA) != 0) { 
+        pdp8->ac ^= 07777; 
+    }
+
+    if ((op & PDP8_OPR_GRP1_CML) != 0) { 
+        pdp8->link = ~pdp8->link; 
+    }
  
     /* NOTE model specific - on the 8/I and later, IAC happens before the shifts; in 
      * earlier models, they happened at the same time.
      */
-    if ((op & PDP8_OPR_GRP1_IAC) != 0) { pdp8->ac = (pdp8->ac + 1) & MASK12; }
+    if ((op & PDP8_OPR_GRP1_IAC) != 0) { 
+        pdp8->ac = (pdp8->ac + 1) & MASK12; 
+    }
  
     uint12_t shift = op & (PDP8_OPR_GRP1_RAL | PDP8_OPR_GRP1_RAR);
  
@@ -249,9 +262,5 @@ static void group_2_or(uint12_t op, pdp8_t *pdp8) {
     if ((op & PDP8_OPR_GRP2_OSR) != 0) {
         pdp8->ac |= pdp8->sr;
     }
-}
-
-static void group3(uint12_t op, pdp8_t *pdp8) {
-
 }
 

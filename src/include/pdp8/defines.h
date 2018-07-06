@@ -34,6 +34,8 @@ typedef enum pdp8_reg_t {
     REG_LINK,
     REG_RUN,
     REG_SR,
+    REG_SC,
+    REG_MQ,
 } pdp8_reg_t;
 
 /* instructions */

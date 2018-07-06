@@ -13,6 +13,8 @@
 static inline int min(int x, int y) { return x < y ? x : y; }
 static inline int isodigit(char ch) { return ch >= '0' && ch <= '7'; }
 
+static void commandloop(FILE *fp);
+
 static void unassemble(char *);
 static void registers(char *);
 static void set(char *);
@@ -44,13 +46,35 @@ static pdp8_t *pdp8;
 
 int main(int argc, char *argv[]) {
     pdp8 = pdp8_create();
+    commandloop(stdin);
+}
+
+static void commandloop(FILE *fp) {
     for(;;) {
         char command[256];
-        printf("pdp8> ");
-        if (fgets(command, sizeof(command), stdin) == NULL) {
+        if (fp == stdin) {
+            printf("pdp8> ");
+        }
+        if (fgets(command, sizeof(command), fp) == NULL) {
             break;
         }
-        execute_command(trim(command), commands);
+        char *trimmed = trim(command);
+        if (fp != stdin) {
+            printf("-%s\n", trimmed);
+        }
+
+        if (trimmed[0] == '@') {
+            FILE *nested = fopen(trimmed+1, "r");
+            if (nested == NULL) {
+                printf("could not open script \"%s\"\n", trimmed+1);
+                continue;
+            }
+            commandloop(nested);
+            fclose(nested);
+            continue;
+        }
+
+        execute_command(trimmed, commands);
     }
 }
 
@@ -66,6 +90,8 @@ static void help(char *tail) {
         }
         printf(" %s\n", p->help);
     }
+
+    printf("\n@filename executes lines of \"filename\" until end of file\n");
 }
 
 static void examine(char *tail) {
@@ -155,7 +181,11 @@ static void unassemble(char *tail) {
 }
 
 static void registers(char *tail) {
-    printf("AC %04o PC %04o SR %04o LINK %o %s\n", pdp8->ac, pdp8->pc, pdp8->sr, pdp8->link, pdp8->run ? "RUN" : "STOP");
+    printf("AC %04o PC %04o SR %04o LINK %o", pdp8->ac, pdp8->pc, pdp8->sr, pdp8->link);
+    if (pdp8->option_eae) {
+        printf(" MQ %04o SC %04o", pdp8->mq, pdp8->sc);
+    }
+    printf(" %s\n", pdp8->run ? "RUN" : "STOP");
     char line[200];
     pdp8_disassemble(pdp8->pc, pdp8->core[pdp8->pc], line, sizeof(line));
     printf("%s\n", line);
@@ -184,6 +214,11 @@ static void set(char *tail) {
         return;
     }
 
+    if ((reg == REG_MQ || reg == REG_SC) && !pdp8->option_eae) {
+        printf("%s is only available if the EAE option is installed\n", regname);
+        return;
+    }
+
     if (value < 0 || value > 07777) {
         printf("values for %s must be in the range [0000..7777]\n", regname);
         return;
@@ -195,6 +230,8 @@ static void set(char *tail) {
         case REG_LINK: pdp8->link = value; break;
         case REG_RUN: pdp8->run = value; break;
         case REG_SR: pdp8->sr = value; break;
+        case REG_MQ: pdp8->mq = value; break;
+        case REG_SC: pdp8->sc = value; break;
         default: break;
     }
 }

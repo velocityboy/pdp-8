@@ -14,6 +14,10 @@ pdp8_reg_t pdp8_reg_from_string(char *s) {
         return REG_RUN;
     } else if (strcasecmp(s, "SR") == 0) {
         return REG_SR;
+    } else if (strcasecmp(s, "SC") == 0) {
+        return REG_SC;
+    } else if (strcasecmp(s, "MQ") == 0) {
+        return REG_MQ;
     }
 
     return REG_INVALID;
