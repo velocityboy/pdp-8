@@ -9,6 +9,7 @@ add_library(pdp8
 add_executable(pdp8_tests
   pdp8/tests/testmain.c
   pdp8/tests/test_cpu.c)
+target_link_libraries(pdp8_tests pdp8)
 
 target_include_directories(pdp8
   PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 
 #include "pdp8/defines.h"
 #include "pdp8/emulator.h"
@@ -14,19 +15,20 @@ static void group_2_or(uint12_t op, pdp8_t *pdp8);
  * Create a new emulator instance.
  */
 pdp8_t *pdp8_create() {
-    pdp8_t *emu = calloc(1, sizeof(pdp8_t));
-    if (emu == NULL) {
+    pdp8_t *pdp8 = calloc(1, sizeof(pdp8_t));
+    if (pdp8 == NULL) {
         return NULL;
     }
 
-    emu->core_size = PDP8_STD_CORE_WORDS;
-    emu->core = calloc(sizeof(uint12_t), emu->core_size);
-    if (emu->core == NULL) {
-        free(emu);
+    pdp8->core_size = PDP8_STD_CORE_WORDS;
+    pdp8->core = calloc(sizeof(uint12_t), pdp8->core_size);
+    if (pdp8->core == NULL) {
+        free(pdp8);
         return NULL;
     }
+    pdp8->run = 1;
 
-    return emu;
+    return pdp8;
 }
 
 /*
@@ -40,6 +42,20 @@ void pdp8_free(pdp8_t *pdp8) {
 }
 
 /*
+ * Return the entire emulator (including core) to a blank slate
+ */
+extern void pdp8_clear(pdp8_t *pdp8) {
+    uint12_t *core = pdp8->core;
+    int core_size = pdp8->core_size;
+    memset(pdp8, 0, sizeof(pdp8_t));
+    memset(core, 0, core_size * sizeof(uint12_t));
+
+    pdp8->core = core;
+    pdp8->core_size = core_size;
+    pdp8->run = 1;
+}
+
+/*
  * Execute one instruction.
  */
 void pdp8_step(pdp8_t *pdp8) {
@@ -50,19 +66,19 @@ void pdp8_step(pdp8_t *pdp8) {
     uint12_t opword = pdp8->core[pdp8->pc];
     pdp8->pc = (pdp8->pc + 1) & MASK12;
 
-    int op = PDP8_OP(opword);
+    int oper = PDP8_OP(opword);
 
     uint12_t ea;
     uint16_t sum;
 
-    switch (op) {
+    switch (oper) {
         case PDP8_OP_AND:
-            ea = effective_address(op, pdp8);
+            ea = effective_address(opword, pdp8);
             pdp8->ac &= pdp8->core[ea];
             break;
 
         case PDP8_OP_TAD:
-            ea = effective_address(op, pdp8);
+            ea = effective_address(opword, pdp8);
             sum = pdp8->ac + pdp8->core[ea];
             if (sum & BIT_CARRY) {
                 pdp8->link = ~pdp8->link;
@@ -70,7 +86,7 @@ void pdp8_step(pdp8_t *pdp8) {
             break;
 
         case PDP8_OP_ISZ:
-            ea = effective_address(op, pdp8);
+            ea = effective_address(opword, pdp8);
             pdp8->core[ea] = (pdp8->core[ea] + 1) & MASK12;
             if (pdp8->core[ea] == 0) {
               pdp8->pc = (pdp8->pc + 1) & MASK12;
@@ -78,25 +94,25 @@ void pdp8_step(pdp8_t *pdp8) {
             break;
 
         case PDP8_OP_DCA:
-            ea = effective_address(op, pdp8);
+            ea = effective_address(opword, pdp8);
             pdp8->core[ea] = pdp8->ac;
             pdp8->ac = 0;
             break;
 
         case PDP8_OP_JMS:
-            ea = effective_address(op, pdp8);
+            ea = effective_address(opword, pdp8);
             pdp8->core[ea] = pdp8->pc;
             pdp8->pc = (ea + 1) & MASK12;
             break;
 
         case PDP8_OP_JMP:
-            pdp8->pc = effective_address(op, pdp8);
+            pdp8->pc = effective_address(opword, pdp8);
             break;
 
         case PDP8_OP_IOT: {
-            void (*handler)(uint12_t, pdp8_t *) = pdp8->device_handlers[PDP8_IOT_DEVICE_ID(op)];
+            void (*handler)(uint12_t, pdp8_t *) = pdp8->device_handlers[PDP8_IOT_DEVICE_ID(opword)];
             if (handler == NULL) {
-                handler(op, pdp8);
+                handler(opword, pdp8);
             }
             break;
         }
@@ -131,6 +147,11 @@ static uint12_t effective_address(uint12_t op, pdp8_t *pdp8) {
   
     /* bit 3, if set, means indirect */
     if (PDP8_M_IND(op)) {
+        /* auto-indexing */
+        if (addr >= 00010 && addr <= 00017) {
+            pdp8->core[addr] = (pdp8->core[addr] + 1) & MASK12;
+        }
+
         addr = pdp8->core[addr];
     }
   

@@ -29,12 +29,13 @@ struct pdp8_t {
     /* these registers are only used if option_eae is installed */
     uint12_t mq;
     uint12_t sc;
-     
+
     device_handler_t device_handlers[PDP8_DEVICE_IDS];
 };
 
 extern pdp8_t *pdp8_create();
 extern void pdp8_free(pdp8_t *pdp8);
+extern void pdp8_clear(pdp8_t *pdp8);
 extern void pdp8_step(pdp8_t *pdp8);
 
 /* utilities */

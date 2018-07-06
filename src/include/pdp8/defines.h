@@ -57,6 +57,11 @@ typedef enum pdp8_op_t {
 #define PDP8_M_ZERO(w) ((w) & BIT4)
 #define PDP8_M_OFFS(w) ((w) & 00177)
 
+#define PDP8_M_INDIRECT BIT3
+#define PDP8_M_PAGE BIT4
+
+#define PDP8_M_MAKE(op, opts, offset) (((op) << 9) | (opts) | (offset))
+
 /* IOT layout */
 #define PDP8_IOT_DEVICE_ID(w) (((w) >> 3) & 077)
 #define PDP8_IOT_FUNCTION(w) ((w) & 07)
