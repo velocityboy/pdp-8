@@ -75,6 +75,7 @@ typedef enum pdp8_op_t {
 /* CLA is consistent across all groups */
 #define PDP8_OPR_CLA BIT4
 
+#define PDP8_OPR_GRP1 07000
 #define PDP8_OPR_GRP1_CLL BIT5
 #define PDP8_OPR_GRP1_CMA BIT6
 #define PDP8_OPR_GRP1_CML BIT7
