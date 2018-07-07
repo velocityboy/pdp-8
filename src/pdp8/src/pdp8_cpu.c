@@ -77,12 +77,11 @@ void pdp8_step(pdp8_t *pdp8) {
             pdp8->ac &= pdp8->core[ea];
             break;
 
-        case PDP8_OP_TAD:
+        case PDP8_OP_TAD: 
             ea = effective_address(opword, pdp8);
-            sum = pdp8->ac + pdp8->core[ea];
-            if (sum & BIT_CARRY) {
-                pdp8->link = ~pdp8->link;
-            }
+            sum = (pdp8->link << 12) + pdp8->ac + pdp8->core[ea];
+            pdp8->ac = sum & 07777;
+            pdp8->link = (sum >> 12) & 01;
             break;
 
         case PDP8_OP_ISZ:
