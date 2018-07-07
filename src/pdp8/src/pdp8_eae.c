@@ -10,8 +10,11 @@ static void op_dvi(pdp8_t *pdp8);
 static void op_nmi(pdp8_t *pdp8);
 static void op_shl(pdp8_t *pdp8);
 static void op_asr(pdp8_t *pdp8);
+static void op_lsr(pdp8_t *pdp8);
 
 void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
+    int eae = pdp8->option_eae;
+
     if ((op & PDP8_OPR_CLA) != 0) {
         pdp8->ac = 0;
     }
@@ -20,7 +23,7 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
         pdp8->ac |= pdp8->mq;
     }
 
-    if ((op & PDP8_OPR_GRP3_SCA) != 0) {
+    if (eae && (op & PDP8_OPR_GRP3_SCA) != 0) {
         pdp8->ac |= pdp8->sc;
     }
 
@@ -29,12 +32,18 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
         pdp8->ac = 0;
     }
 
+    if (!eae) {
+        return;
+    }
+
     switch (PDP8_OPR_GRP3_CODE(op)) {
         case PDP8_GRP3_CODE_NOP:
             break;
 
         case PDP8_GRP3_CODE_SCL:
             /* TODO on 8/I and forward, load SC from memory */
+            pdp8->sc = (~pdp8->core[pdp8->pc]) & 00037;
+            pdp8->pc = (pdp8->pc + 1) & 07777;
             break;
 
         case PDP8_GRP3_CODE_MUY:
@@ -58,6 +67,7 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
             break;
 
         case PDP8_GRP3_CODE_LSR:
+            op_lsr(pdp8);
             break;
     }
 }
@@ -78,6 +88,11 @@ static void op_muy(pdp8_t *pdp8) {
 static void op_dvi(pdp8_t *pdp8) {
     uint12_t divisor = pdp8->core[pdp8->pc];
     pdp8->pc = (pdp8->pc + 1) & MASK12;
+    if (divisor == 0) {
+        pdp8->link = 1;     /* indicates overflow */
+        return;
+    }
+
     uint32_t dividend = (pdp8->ac << 12) | pdp8->mq;
     uint32_t quot = dividend / divisor;
     uint32_t rem  = dividend % divisor;
@@ -121,7 +136,7 @@ static void op_nmi(pdp8_t *pdp8) {
 }
 
 static void op_shl(pdp8_t *pdp8) {
-    int shifts = pdp8->core[pdp8->pc] + 1;
+    int shifts = (pdp8->core[pdp8->pc] & 037) + 1;
     pdp8->pc = (pdp8->pc + 1) & MASK12;
     uint32_t temp = (pdp8->link << 24) | (pdp8->ac << 12) | pdp8->mq;
     
@@ -134,7 +149,7 @@ static void op_shl(pdp8_t *pdp8) {
 }
 
 static void op_asr(pdp8_t *pdp8) {
-    int shifts = pdp8->core[pdp8->pc] + 1;
+    int shifts = (pdp8->core[pdp8->pc] & 037) + 1;
     pdp8->pc = (pdp8->pc + 1) & MASK12;
     int32_t temp = 0;
     if (pdp8->ac & BIT0) {
@@ -150,8 +165,8 @@ static void op_asr(pdp8_t *pdp8) {
     pdp8->mq = temp & MASK12;    
 }
 
-static void op_lrs(pdp8_t *pdp8) {
-    int shifts = pdp8->core[pdp8->pc] + 1;
+static void op_lsr(pdp8_t *pdp8) {
+    int shifts = (pdp8->core[pdp8->pc] & 037) + 1;
     pdp8->pc = (pdp8->pc + 1) & MASK12;
     uint32_t temp = (pdp8->ac << 12) | pdp8->mq;
 

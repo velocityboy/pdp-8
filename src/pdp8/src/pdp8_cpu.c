@@ -123,7 +123,7 @@ void pdp8_step(pdp8_t *pdp8) {
                 group_2_or(opword, pdp8);
             } else if (PDP8_OPR_GROUP2_AND(opword)) {
                 group_2_and(opword, pdp8);
-            } else if (PDP8_OPR_GROUP3(opword) && pdp8->option_eae) {
+            } else if (PDP8_OPR_GROUP3(opword)) {
                 pdp8_group3(opword, pdp8);
             }
             break;
