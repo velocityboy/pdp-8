@@ -9,7 +9,8 @@ add_library(pdp8
 add_executable(pdp8_tests
   pdp8/tests/testmain.c
   pdp8/tests/test_cpu.c
-  pdp8/tests/test_cpu_group1.c)  
+  pdp8/tests/test_cpu_group1.c  
+  pdp8/tests/test_cpu_group2.c)  
 target_link_libraries(pdp8_tests pdp8)
 
 target_include_directories(pdp8

@@ -219,18 +219,18 @@ static void group_1(uint12_t op, pdp8_t *pdp8) {
  * Group 2 instructions, AND version.
  */
 static void group_2_and(uint12_t op, pdp8_t *pdp8) {
-    int skip = 0;
+    int skip = 1;
     
     if ((op & PDP8_OPR_GRP2_AND_SPA) != 0) {
-        skip |= ((pdp8->ac & BIT0) != BIT0);
+        skip &= ((pdp8->ac & BIT0) != BIT0);
     }
     
     if ((op & PDP8_OPR_GRP2_AND_SNA) != 0) {
-        skip |= pdp8->ac != 0;
+        skip &= pdp8->ac != 0;
     }
     
     if ((op & PDP8_OPR_GRP2_AND_SZL) != 0) {
-        skip |= pdp8->link == 0;
+        skip &= pdp8->link == 0;
     }
     
     if (skip) {

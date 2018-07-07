@@ -85,6 +85,7 @@ typedef enum pdp8_op_t {
 #define PDP8_OPR_GRP1_RTWO BIT10
 #define PDP8_OPR_GRP1_IAC BIT11
 
+#define PDP8_OPR_GRP2 07400
 #define PDP8_OPR_GRP2_OSR BIT9
 #define PDP8_OPR_GRP2_HLT BIT10
 
@@ -92,6 +93,7 @@ typedef enum pdp8_op_t {
 #define PDP8_OPR_GRP2_OR_SZA BIT6
 #define PDP8_OPR_GRP2_OR_SNL BIT7
 
+#define PDP8_OPR_GRP2_AND BIT8
 #define PDP8_OPR_GRP2_AND_SPA BIT5
 #define PDP8_OPR_GRP2_AND_SNA BIT6
 #define PDP8_OPR_GRP2_AND_SZL BIT7
