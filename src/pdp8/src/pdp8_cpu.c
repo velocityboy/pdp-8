@@ -17,16 +17,13 @@ static pdp8_model_flags_t models[] = {
         PDP8,
         PDP8_RARL_UNDEFINED,
         PDP8_RTRL_UNDEFINED,
-        PDP8_IAC_ROTS_UNSUPPORTED |
-        PDP8_IOT0_IS_IAC |
+        PDP8_CMA_ROTS_SUPPORTED |
         PDP8_CLA_NMI_HANGS,
     },
     {
         PDP8_S,
         PDP8_RARL_UNDEFINED,
         PDP8_RTRL_UNDEFINED,
-        PDP8_IAC_ROTS_UNSUPPORTED |
-        PDP8_CMA_ROTS_UNSUPPORTED |
         PDP8_CLA_NMI_HANGS |
         PDP8_SCL_SUPPORTED,
     },
@@ -34,6 +31,8 @@ static pdp8_model_flags_t models[] = {
         PDP8_I,
         PDP8_RARL_AND,
         PDP8_RTRL_AND,
+        PDP8_IAC_ROTS_SUPPORTED |
+        PDP8_CMA_ROTS_SUPPORTED |
         PDP8_CLA_NMI_HANGS |
         PDP8_SWP_SUPPORTED |
         PDP8_SCL_SUPPORTED,
@@ -42,6 +41,8 @@ static pdp8_model_flags_t models[] = {
         PDP8_L,
         PDP8_RARL_AND,
         PDP8_RTRL_AND,
+        PDP8_IAC_ROTS_SUPPORTED |
+        PDP8_CMA_ROTS_SUPPORTED |
         PDP8_CLA_NMI_HANGS |
         PDP8_EAE_UNSUPPORTED,
     },
@@ -49,6 +50,9 @@ static pdp8_model_flags_t models[] = {
         PDP8_E,
         PDP8_RARL_AND_INSTR,
         PDP8_RTRL_PAGE_INSTR,
+        PDP8_IOT0_FULL_INTR_SET |
+        PDP8_IAC_ROTS_SUPPORTED |
+        PDP8_CMA_ROTS_SUPPORTED |
         PDP8_SWP_SUPPORTED |
         PDP8_BSW_SUPPORTED |
         PDP8_SCL_SUPPORTED |
@@ -58,6 +62,9 @@ static pdp8_model_flags_t models[] = {
         PDP8_A,
         PDP8_RARL_AND_INSTR,
         PDP8_RTRL_NEXT_ADDR,
+        PDP8_IOT0_FULL_INTR_SET |
+        PDP8_IAC_ROTS_SUPPORTED |
+        PDP8_CMA_ROTS_SUPPORTED |
         PDP8_SWP_SUPPORTED |
         PDP8_BSW_SUPPORTED |
         PDP8_SCL_SUPPORTED |
@@ -244,13 +251,13 @@ static void group_1(uint12_t op, pdp8_t *pdp8) {
     /* On some models, some bit combos are unsupported. */
     if ((op & (PDP8_OPR_GRP1_RAL | PDP8_OPR_GRP1_RAR)) != 0) {
         unsigned flags = pdp8->flags.flags;
-        if (((op & PDP8_OPR_GRP1_CMA) != 0) && ((flags & PDP8_CMA_ROTS_UNSUPPORTED) != 0)) {
+        if (((op & PDP8_OPR_GRP1_CMA) != 0) && ((flags & PDP8_CMA_ROTS_SUPPORTED) == 0)) {
             pdp8->run = 0;
             pdp8->halt_reason = PDP8_HALT_CMA_ROTS_UNSUPPORTED;
             return;
         }
 
-        if (((op & PDP8_OPR_GRP1_IAC) != 0) && ((flags & PDP8_IAC_ROTS_UNSUPPORTED) != 0)) {
+        if (((op & PDP8_OPR_GRP1_IAC) != 0) && ((flags & PDP8_IAC_ROTS_SUPPORTED) == 0)) {
             pdp8->run = 0;
             pdp8->halt_reason = PDP8_HALT_IAC_ROTS_UNSUPPORTED;
             return;

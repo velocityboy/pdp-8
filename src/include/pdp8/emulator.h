@@ -37,10 +37,10 @@ typedef enum {
 
 /* behavior quirks/new features per CPU model 
  */
-#define PDP8_IAC_ROTS_UNSUPPORTED 00000001 /* group 1 rotation + IAC is not supported */
-#define PDP8_IOT0_IS_IAC          00000002 /* IOT 0 is used for the type 189 ADC, not interrupt control as later */
+#define PDP8_IAC_ROTS_SUPPORTED   00000001 /* group 1 rotation + IAC is supported */
+#define PDP8_IOT0_FULL_INTR_SET   00000002 /* On early models, only ION and IOFF are supported in IOT 0 */
 #define PDP8_CLA_NMI_HANGS        00000004 /* CLA+NMI hangs on non-zero AC */
-#define PDP8_CMA_ROTS_UNSUPPORTED 00000010 /* CMA does not work with rotates */
+#define PDP8_CMA_ROTS_SUPPORTED   00000010 /* CMA does works with rotates */
 #define PDP8_BSW_SUPPORTED        00000020 /* BSW (byte swap) supported */
 #define PDP8_SWP_SUPPORTED        00000040 /* SWP (AC <=> MQ) supported */
 #define PDP8_EAE_HAS_MODE_B       00000100 /* EAE option has mode B instructions */
