@@ -115,6 +115,7 @@ extern void pdp8_step(pdp8_t *pdp8);
  * or data space field.
  */
 extern uint12_t pdp8_read_instr_word(pdp8_t *pdp8, uint12_t addr);
+extern void pdp8_write_data_word(pdp8_t *pdp8, uint12_t addr, uint12_t value);
 extern uint12_t pdp8_read_data_word(pdp8_t *pdp8, uint12_t addr);
 
 /* utilities */

@@ -873,3 +873,122 @@ DECLARE_TEST(eae_B_ASR, "EAE group B ASR") {
     
     pdp8_free(pdp8);
 }
+
+DECLARE_TEST(eae_B_SCA, "EAE group B SCA") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_SCA;
+    pdp8->ac = 00700;
+    pdp8->sc = 00037;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 00737, "AC or'ed with SC");
+
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(eae_B_DAD, "EAE group B DAD") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_DAD;
+    pdp8->core[01001] = 02000;
+    pdp8->core[02000] = 01111; /* low */
+    pdp8->core[02001] = 02222; /* high */
+    pdp8->mq = 03333; /* low */
+    pdp8->ac = 04444; /* high */
+    pdp8->link = 1;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 06666, "AC is high word of sum");
+    ASSERT_V(pdp8->mq == 04444, "MQ is high word of sum");
+    ASSERT_V(pdp8->link == 0, "LINK is cleared");
+    ASSERT_V(pdp8->pc == 01002, "PC incremented past data");
+
+    pdp8_clear(pdp8);
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_DAD;
+    pdp8->core[01001] = 02000;
+    pdp8->core[02000] = 01111; /* low */
+    pdp8->core[02001] = 04222; /* high */
+    pdp8->mq = 03333; /* low */
+    pdp8->ac = 04444; /* high */
+    pdp8->link = 1;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 00666, "AC is high word of sum");
+    ASSERT_V(pdp8->mq == 04444, "MQ is high word of sum");
+    ASSERT_V(pdp8->link == 1, "LINK is set");
+    ASSERT_V(pdp8->pc == 01002, "PC incremented past data");
+    
+    pdp8_clear(pdp8);
+
+    pdp8->core[00010] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_DAD;
+    pdp8->core[00011] = 02000;
+    pdp8->core[02001] = 01111; /* low */
+    pdp8->core[02002] = 02222; /* high */
+    pdp8->mq = 03333; /* low */
+    pdp8->ac = 04444; /* high */
+    pdp8->link = 1;
+    pdp8->pc = 00010;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 06666, "AC is high word of sum");
+    ASSERT_V(pdp8->mq == 04444, "MQ is high word of sum");
+    ASSERT_V(pdp8->link == 0, "LINK is cleared");
+    ASSERT_V(pdp8->pc == 00012, "PC incremented past data");
+    
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(eae_B_DDST, "EAE group B DST") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_DST;
+    pdp8->core[01001] = 02000;
+    pdp8->mq = 03333; /* low */
+    pdp8->ac = 04444; /* high */
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->core[02000] == 03333, "low word stored");
+    ASSERT_V(pdp8->core[02001] == 04444, "low word stored");
+    ASSERT_V(pdp8->pc == 01002, "PC incremented past data");
+
+    pdp8_clear(pdp8);
+
+    pdp8->core[00010] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_DST;
+    pdp8->core[00011] = 02000;
+    pdp8->mq = 03333; /* low */
+    pdp8->ac = 04444; /* high */
+    pdp8->link = 1;
+    pdp8->pc = 00010;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->core[02001] == 03333, "low word stored");
+    ASSERT_V(pdp8->core[02002] == 04444, "low word stored");
+    ASSERT_V(pdp8->pc == 00012, "PC incremented past data");
+    
+    pdp8_free(pdp8);
+}
+

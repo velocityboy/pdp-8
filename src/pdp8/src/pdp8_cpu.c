@@ -223,6 +223,12 @@ uint12_t pdp8_read_instr_word(pdp8_t *pdp8, uint12_t addr) {
     return pdp8->core[addr];
 }
 
+/* write a word to data space */
+void pdp8_write_data_word(pdp8_t *pdp8, uint12_t addr, uint12_t value) {
+    /* TODO DF register */
+    pdp8->core[addr] = value;
+}
+
 /* read a word from data space */
 uint12_t pdp8_read_data_word(pdp8_t *pdp8, uint12_t addr) {
     /* TODO DF register */

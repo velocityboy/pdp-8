@@ -19,6 +19,8 @@ static void op_b_acs(pdp8_t *pdp8);
 static void op_b_muy(pdp8_t *pdp8);
 static void op_b_dvi(pdp8_t *pdp8);
 static void op_b_nmi(pdp8_t *pdp8);
+static void op_b_dad(pdp8_t *pdp8);
+static void op_b_dst(pdp8_t *pdp8);
 
 static void muy(pdp8_t *pdp8, uint12_t term);
 static void div(pdp8_t *pdp8, uint12_t divisor);    
@@ -80,7 +82,7 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
     /* in mode B, the SCA bit is not supported and becomes part of the instruction code */
     if (!pdp8->eae_mode_b) {
         if (eae && (op & PDP8_OPR_GRP3_SCA) != 0) {
-            pdp8->ac |= pdp8->sc;
+            pdp8->ac |= (pdp8->sc & 00037);
         }
     }
 
@@ -276,6 +278,20 @@ static void mode_b_codes(uint12_t op, pdp8_t *pdp8) {
             /* not a mistake, code is shared here */
             op_lsr(pdp8);
             break;
+
+        case PDP8_GRP3_CODE_B_SCA:
+            /* this happens to be the mode A SCA bit + mode A NOP */
+            pdp8->ac |= (pdp8->sc & 00037);
+            break;
+
+        case PDP8_GRP3_CODE_B_DAD:
+            op_b_dad(pdp8);
+            break;
+
+        case PDP8_GRP3_CODE_B_DST:
+            op_b_dst(pdp8);
+            break;
+            
     } 
 }
 
@@ -305,6 +321,39 @@ static void op_b_dvi(pdp8_t *pdp8) {
     pdp8->pc = (pdp8->pc + 1) & MASK12;
     uint12_t divisor = pdp8_read_data_word(pdp8, addr);
     div(pdp8, divisor);
+}
+
+static void op_b_dad(pdp8_t *pdp8) {
+    uint12_t addr = pdp8->core[pdp8->pc];
+    if ((pdp8->pc & 07770) == 00010) {
+        addr = (addr + 1) & MASK12;
+        pdp8->core[pdp8->pc] = addr;
+    }
+    pdp8->pc = (pdp8->pc + 1) & MASK12;
+
+    uint32_t x = (pdp8->ac << ACSHIFT) | pdp8->mq;
+    uint32_t y = pdp8_read_data_word(pdp8, addr);
+    addr = (addr + 1) & MASK12;
+    y |= pdp8_read_data_word(pdp8, addr) << 12;
+
+    uint32_t sum = x + y;
+
+    pdp8->link = ((sum >> LSHIFT) != 0) ? 1 : 0;
+    pdp8->ac = (sum >> ACSHIFT) & MASK12;
+    pdp8->mq = sum & MASK12;
+}
+
+static void op_b_dst(pdp8_t *pdp8) {
+    uint12_t addr = pdp8->core[pdp8->pc];
+    if ((pdp8->pc & 07770) == 00010) {
+        addr = (addr + 1) & MASK12;
+        pdp8->core[pdp8->pc] = addr;
+    }
+    pdp8->pc = (pdp8->pc + 1) & MASK12;
+
+    pdp8_write_data_word(pdp8, addr, pdp8->mq);
+    addr = (addr + 1) & MASK12;
+    pdp8_write_data_word(pdp8, addr, pdp8->ac);
 }
 
 /*-----------------------------------------------------------------------------
