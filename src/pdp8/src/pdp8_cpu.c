@@ -217,6 +217,18 @@ void pdp8_step(pdp8_t *pdp8) {
     }
 }
 
+/* read a word from instruction space */
+uint12_t pdp8_read_instr_word(pdp8_t *pdp8, uint12_t addr) {
+    /* TODO IF register */
+    return pdp8->core[addr];
+}
+
+/* read a word from data space */
+uint12_t pdp8_read_data_word(pdp8_t *pdp8, uint12_t addr) {
+    /* TODO DF register */
+    return pdp8->core[addr];
+}
+
 /*
  * Compute the effective address for a memory operation, taking 
  * indirection and PC relative addressing into account.

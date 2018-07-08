@@ -110,6 +110,13 @@ extern int pdp8_set_model(pdp8_t *pdp8, pdp8_model_t model);
 extern void pdp8_clear(pdp8_t *pdp8);
 extern void pdp8_step(pdp8_t *pdp8);
 
+/* if extended memory is enabled, then reading directly from core[] should
+ * be avoided. these functions properly read from the selected instruction
+ * or data space field.
+ */
+extern uint12_t pdp8_read_instr_word(pdp8_t *pdp8, uint12_t addr);
+extern uint12_t pdp8_read_data_word(pdp8_t *pdp8, uint12_t addr);
+
 /* utilities */
 extern int pdp8_disassemble(uint16_t addr, uint12_t op, char *decoded, int decodedLen);
 extern pdp8_reg_t pdp8_reg_from_string(char *s);

@@ -315,6 +315,24 @@ DECLARE_TEST(eae_NMI, "EAE group NMI") {
     ASSERT_V(pdp8->sc == 000, "SC contains number of shifts");
     ASSERT_V(pdp8->pc == 01001, "PC incremented");
     
+    /* in mode A, a result of 4000 0000 should NOT be modified */
+    pdp8_clear(pdp8);
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_NMI;
+    pdp8->link = 0;
+    pdp8->ac = 04000;
+    pdp8->mq = 00000;
+    pdp8->sc = 0;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->link == 0, "LINK was unchanged");
+    ASSERT_V(pdp8->ac == 04000, "AC was unchanged");
+    ASSERT_V(pdp8->mq == 00000, "MQ was unchanged");
+    ASSERT_V(pdp8->sc == 000, "SC contains number of shifts");
+    ASSERT_V(pdp8->pc == 01001, "PC incremented");
+
     pdp8_free(pdp8);
 }
 
@@ -531,6 +549,13 @@ DECLARE_TEST(eae_cli_nmi_hang, "EAE CLA+NMI with AC != 0 hangs on early machines
     pdp8_free(pdp8);
 }
 
+/*-----------------------------------------------------------------------------
+ *
+ * Below tests instructions that only work in mode B (more modern EAE 
+ * implementations).
+ *
+ */
+
 DECLARE_TEST(eae_mode_switch, "EAE mode switching") {
     pdp8_t *pdp8 = pdp8_create();
     
@@ -600,5 +625,251 @@ DECLARE_TEST(eae_mode_switch, "EAE mode switching") {
     
     ASSERT_V(pdp8->eae_mode_b == 0, "SWBA clears mode B on PDP-8/E");
    
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(eae_B_ACS, "EAE group mode B ACS") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_ACS;
+    pdp8->ac = 00707;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 00000, "AC cleared");
+    ASSERT_V(pdp8->sc == 00007, "SC set to low 5 bits of AC");
+    
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(eae_B_MUY, "EAE group mode B MUY") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_MUY;
+    pdp8->core[01001] = 02000;
+    pdp8->core[02000] = 07421;
+    pdp8->mq = 06543;
+    pdp8->link = 1;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 06233, "AC contains high bits of product");
+    ASSERT_V(pdp8->mq == 00223, "MQ contains low bits of product");
+    ASSERT_V(pdp8->link == 0, "LINK was cleared");
+    ASSERT_V(pdp8->pc == 01002, "PC incremented past memory operand");
+    
+    /* if the code is in the auto-increment region, auto-increment applies */
+    pdp8_clear(pdp8);
+    pdp8->core[00010] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_MUY;
+    pdp8->core[00011] = 02000;
+    pdp8->core[02001] = 07421;
+    pdp8->mq = 06543;
+    pdp8->link = 1;
+    pdp8->pc = 00010;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->core[00011] == 02001, "Auto-increment was applied");
+    ASSERT_V(pdp8->ac == 06233, "AC contains high bits of product");
+    ASSERT_V(pdp8->mq == 00223, "MQ contains low bits of product");
+    ASSERT_V(pdp8->link == 0, "LINK was cleared");
+    ASSERT_V(pdp8->pc == 00012, "PC incremented past memory operand");
+
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(eae_B_DVI, "EAE group B DVI") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_DVI;
+    pdp8->core[01001] = 02000;
+    pdp8->core[02000] = 03412;
+    pdp8->ac = 01234;
+    pdp8->mq = 05677;
+    pdp8->link = 1;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 00137, "AC contains the remainder");
+    ASSERT_V(pdp8->mq == 02760, "MQ contains the quotient");
+    ASSERT_V(pdp8->link == 0, "LINK was cleared");
+    ASSERT_V(pdp8->pc == 01002, "PC incremented past memory operand");
+
+    pdp8_clear(pdp8);
+    pdp8->core[00010] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_DVI;
+    pdp8->core[00011] = 02000;
+    pdp8->core[02001] = 03412;
+    pdp8->ac = 01234;
+    pdp8->mq = 05677;
+    pdp8->link = 1;
+    pdp8->pc = 00010;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 00137, "AC contains the remainder");
+    ASSERT_V(pdp8->mq == 02760, "MQ contains the quotient");
+    ASSERT_V(pdp8->link == 0, "LINK was cleared");
+    ASSERT_V(pdp8->pc == 00012, "PC incremented past memory operand");
+
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(eae_B_NMI, "EAE group B NMI") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    /* shifts until top two bits of AC are different */
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_NMI;
+    pdp8->link = 1;
+    pdp8->ac = 00527;
+    pdp8->mq = 03427;
+    pdp8->sc = 0;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->link == 0, "LINK was shifted");
+    ASSERT_V(pdp8->ac == 02535, "AC was shifted");
+    ASSERT_V(pdp8->mq == 06134, "MQ was shifted");
+    ASSERT_V(pdp8->sc == 002, "SC contains number of shifts");
+    ASSERT_V(pdp8->pc == 01001, "PC incremented");
+
+    /* shifts until AC|MQ is 6000 0000 */
+    pdp8_clear(pdp8);
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_NMI;
+    pdp8->link = 0;
+    pdp8->ac = 07600;
+    pdp8->mq = 00000;
+    pdp8->sc = 0;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->link == 1, "LINK was shifted");
+    ASSERT_V(pdp8->ac == 06000, "AC was shifted");
+    ASSERT_V(pdp8->mq == 00000, "MQ was shifted");
+    ASSERT_V(pdp8->sc == 003, "SC contains number of shifts");
+    ASSERT_V(pdp8->pc == 01001, "PC incremented");
+
+    /* does not shift if AC|MQ is 0000 0000 (older hardware hangs in this case) */
+    pdp8_clear(pdp8);
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_NMI;
+    pdp8->link = 0;
+    pdp8->ac = 00000;
+    pdp8->mq = 00000;
+    pdp8->sc = 0;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->link == 0, "LINK was unchanged");
+    ASSERT_V(pdp8->ac == 00000, "AC was unchanged");
+    ASSERT_V(pdp8->mq == 00000, "MQ was unchanged");
+    ASSERT_V(pdp8->sc == 000, "SC contains number of shifts");
+    ASSERT_V(pdp8->pc == 01001, "PC incremented");
+    
+    /* in mode B, a result of 4000 0000 should clear AC */
+    pdp8_clear(pdp8);
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_NMI;
+    pdp8->link = 0;
+    pdp8->ac = 04000;
+    pdp8->mq = 00000;
+    pdp8->sc = 0;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->link == 0, "LINK was unchanged");
+    ASSERT_V(pdp8->ac == 00000, "AC was cleared");
+    ASSERT_V(pdp8->mq == 00000, "MQ was unchanged");
+    ASSERT_V(pdp8->sc == 000, "SC contains number of shifts");
+    ASSERT_V(pdp8->pc == 01001, "PC incremented");
+
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(eae_B_SHL, "EAE group B SHL") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_SHL;
+    pdp8->core[01001] = 01003;
+    pdp8->link = 0;
+    pdp8->ac = 01123;
+    pdp8->mq = 04567;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->link == 1, "LINK was shifted");
+    ASSERT_V(pdp8->ac == 01234, "AC was shifted");
+    ASSERT_V(pdp8->mq == 05670, "MQ was shifted");
+    ASSERT_V(pdp8->pc == 01002, "PC properly incremented past memory operand");
+    
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(eae_B_LSR, "EAE group B LSR") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_LSR;
+    pdp8->core[01001] = 01003;
+    pdp8->link = 1;
+    pdp8->ac = 07704;
+    pdp8->mq = 00017;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->link == 0, "LINK was cleared");
+    ASSERT_V(pdp8->ac == 00770, "AC was shifted");
+    ASSERT_V(pdp8->mq == 04001, "MQ was shifted");
+    ASSERT_V(pdp8->pc == 01002, "PC properly incremented past memory operand");
+    
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(eae_B_ASR, "EAE group B ASR") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_B_ASR;
+    pdp8->core[01001] = 01003;
+    pdp8->link = 0;
+    pdp8->ac = 07704;
+    pdp8->mq = 00017;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+    pdp8->eae_mode_b = 1;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->link == 1, "LINK was set");
+    ASSERT_V(pdp8->ac == 07770, "AC was shifted");
+    ASSERT_V(pdp8->mq == 04001, "MQ was shifted");
+    ASSERT_V(pdp8->pc == 01002, "PC properly incremented past memory operand");
+    
     pdp8_free(pdp8);
 }
