@@ -107,7 +107,7 @@ typedef enum pdp8_op_t {
 /* Group 3 with both MQA and MQL is a special case for SWP */
 #define PDP8_OPR_GRP3_SWP 07521
 
-typedef enum pdp8_grp3_code {
+typedef enum pdp8_grp3_code_t {
     PDP8_GRP3_CODE_NOP = 000,
     PDP8_GRP3_CODE_SCL = 002,
     PDP8_GRP3_CODE_MUY = 004,
@@ -116,7 +116,32 @@ typedef enum pdp8_grp3_code {
     PDP8_GRP3_CODE_SHL = 012,
     PDP8_GRP3_CODE_ASR = 014,
     PDP8_GRP3_CODE_LSR = 016,
-} pdp8_grp3_code;
+} pdp8_grp3_code_t;
+
+#define PDP8_OPR_GRP3_CODE_B(w) ((w) & 00056)
+
+typedef enum pdp8_grp3_code_b_t {
+    PDP8_GRP3_CODE_B_NOP = 000,
+    PDP8_GRP3_CODE_B_ACS = 002,
+    PDP8_GRP3_CODE_B_MUY = 004,
+    PDP8_GRP3_CODE_B_DVI = 006,
+    PDP8_GRP3_CODE_B_NMI = 010,
+    PDP8_GRP3_CODE_B_SHL = 012,
+    PDP8_GRP3_CODE_B_ASR = 014,
+    PDP8_GRP3_CODE_B_LSR = 016,
+    PDP8_GRP3_CODE_B_SCA = 040,
+    PDP8_GRP3_CODE_B_DAD = 042,
+    PDP8_GRP3_CODE_B_DST = 044,
+    PDP8_GRP3_CODE_B_SWBA = 046,
+    PDP8_GRP3_CODE_B_DPSZ = 050,
+    PDP8_GRP3_CODE_B_DPIC = 052,
+    PDP8_GRP3_CODE_B_DCM = 054,
+    PDP8_GRP3_CODE_B_SAM = 056,
+} pdp8_grp3_code_b_t;
+
+/* short cut definitions for mode switch */
+#define PDP8_SWAB 07431
+#define PDP8_SWBA 07447
 
 #endif
 

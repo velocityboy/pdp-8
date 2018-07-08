@@ -530,3 +530,75 @@ DECLARE_TEST(eae_cli_nmi_hang, "EAE CLA+NMI with AC != 0 hangs on early machines
     
     pdp8_free(pdp8);
 }
+
+DECLARE_TEST(eae_mode_switch, "EAE mode switching") {
+    pdp8_t *pdp8 = pdp8_create();
+    
+    /* mode B is not available on the straight 8, 8/S, 8/I, 8/L */
+    pdp8_set_model(pdp8, PDP8);
+     
+    pdp8->core[01000] = PDP8_SWAB;
+    pdp8->option_eae = 1;
+    pdp8->pc = 01000;
+     
+    pdp8_step(pdp8);
+     
+    ASSERT_V(pdp8->eae_mode_b == 0, "SWAB ignored on PDP-8");
+
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_S);
+    
+    pdp8->core[01000] = PDP8_SWAB;
+    pdp8->option_eae = 1;
+    pdp8->pc = 01000;
+    
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->eae_mode_b == 0, "SWAB ignored on PDP-8/S");
+
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_I);
+    
+    pdp8->core[01000] = PDP8_SWAB;
+    pdp8->option_eae = 1;
+    pdp8->pc = 01000;
+    
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->eae_mode_b == 0, "SWAB ignored on PDP-8/I");
+
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_L);
+    
+    pdp8->core[01000] = PDP8_SWAB;
+    pdp8->option_eae = 1;
+    pdp8->pc = 01000;
+    
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->eae_mode_b == 0, "SWAB ignored on PDP-8/L");
+
+    /* should work on the PDP-8/E */
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_E);
+    pdp8->core[01000] = PDP8_SWAB;
+    pdp8->option_eae = 1;
+    pdp8->pc = 01000;    
+    
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->eae_mode_b == 1, "SWAB sets mode B on PDP-8/E");
+    
+    pdp8_clear(pdp8);
+
+    pdp8->core[01000] = PDP8_SWBA;
+    pdp8->eae_mode_b = 1;
+    pdp8->option_eae = 1;
+    pdp8->pc = 01000;
+    
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->eae_mode_b == 0, "SWBA clears mode B on PDP-8/E");
+   
+    pdp8_free(pdp8);
+}

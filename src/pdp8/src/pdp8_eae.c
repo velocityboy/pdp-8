@@ -13,6 +13,18 @@ static void op_asr(pdp8_t *pdp8);
 static void op_lsr(pdp8_t *pdp8);
 
 void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
+    /* first, take care of potential mode changes */
+    if ((pdp8->flags.flags & PDP8_EAE_HAS_MODE_B) != 0) {
+        switch (op) {
+            case PDP8_SWAB:
+                pdp8->eae_mode_b = 1;
+                return;
+            case PDP8_SWBA:
+                pdp8->eae_mode_b = 0;
+                return;
+        }
+    }
+
     /* on early machines, CLA+NMI with AC != 0 would hang */
     if ((pdp8->flags.flags & PDP8_CLA_NMI_HANGS) != 0 &&
         pdp8->ac != 0 &&
@@ -21,6 +33,7 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
         pdp8->halt_reason = PDP8_HALT_CLA_NMI_UNSUPPORTED;
         return;
     }
+
 
     int eae = pdp8->option_eae && ((pdp8->flags.flags & PDP8_EAE_UNSUPPORTED) == 0);
 
@@ -65,6 +78,7 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
             if ((pdp8->flags.flags & PDP8_SCL_SUPPORTED) == 0) {
                 pdp8->run = 0;
                 pdp8->halt_reason = PDP8_HALT_SCL_UNSUPPORTED;
+                return;
             }
             pdp8->sc = (~pdp8->core[pdp8->pc]) & 00037;
             pdp8->pc = (pdp8->pc + 1) & 07777;

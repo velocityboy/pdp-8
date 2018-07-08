@@ -86,6 +86,8 @@ struct pdp8_t {
     unsigned link : 1;
     unsigned run : 1;
     unsigned option_eae : 1;        /* Type 182 extended arithmetic element (i.e. mul and div) */
+    unsigned eae_mode_b : 1;        /* Later EAE's: mode B instructions enabled */
+    unsigned gt : 1;                /* EAE mode B GT register */
     uint12_t pc;
     uint12_t sr;        /* front panel switches */
 
