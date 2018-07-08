@@ -62,7 +62,10 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
             break;
 
         case PDP8_GRP3_CODE_SCL:
-            /* TODO on 8/I and forward, load SC from memory */
+            if ((pdp8->flags.flags & PDP8_SCL_SUPPORTED) == 0) {
+                pdp8->run = 0;
+                pdp8->halt_reason = PDP8_HALT_SCL_UNSUPPORTED;
+            }
             pdp8->sc = (~pdp8->core[pdp8->pc]) & 00037;
             pdp8->pc = (pdp8->pc + 1) & 07777;
             break;

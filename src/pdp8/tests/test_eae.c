@@ -172,6 +172,24 @@ DECLARE_TEST(eae_SCL, "EAE group SCL") {
     pdp8_free(pdp8);
 }
 
+DECLARE_TEST(eae_SCL_support, "EAE SCL unsupported on straight eight") {
+    pdp8_t *pdp8 = pdp8_create();
+    pdp8_set_model(pdp8, PDP8);
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_GRP3_CODE_SCL;
+    pdp8->core[01001] = 05212;
+    pdp8->sc = 00000;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->run == 0, "CPU halted on SCL on PDP8");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_SCL_UNSUPPORTED, "HALT reason set on SCL on PDP8");
+    
+    pdp8_free(pdp8);
+}
+
 DECLARE_TEST(eae_MUY, "EAE group MUY") {
     pdp8_t *pdp8 = pdp8_create();
 

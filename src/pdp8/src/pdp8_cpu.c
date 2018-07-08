@@ -27,14 +27,16 @@ static pdp8_model_flags_t models[] = {
         PDP8_RTRL_UNDEFINED,
         PDP8_IAC_ROTS_UNSUPPORTED |
         PDP8_CMA_ROTS_UNSUPPORTED |
-        PDP8_CLA_NMI_HANGS,
+        PDP8_CLA_NMI_HANGS |
+        PDP8_SCL_SUPPORTED,
     },
     {
         PDP8_I,
         PDP8_RARL_AND,
         PDP8_RTRL_AND,
         PDP8_CLA_NMI_HANGS |
-        PDP8_SWP_SUPPORTED,
+        PDP8_SWP_SUPPORTED |
+        PDP8_SCL_SUPPORTED,
     },
     {
         PDP8_L,
@@ -49,6 +51,7 @@ static pdp8_model_flags_t models[] = {
         PDP8_RTRL_PAGE_INSTR,
         PDP8_SWP_SUPPORTED |
         PDP8_BSW_SUPPORTED |
+        PDP8_SCL_SUPPORTED |
         PDP8_EAE_HAS_MODE_B,
     },
     {
@@ -57,6 +60,7 @@ static pdp8_model_flags_t models[] = {
         PDP8_RTRL_NEXT_ADDR,
         PDP8_SWP_SUPPORTED |
         PDP8_BSW_SUPPORTED |
+        PDP8_SCL_SUPPORTED |
         PDP8_EAE_HAS_MODE_B,
     },    
 };
