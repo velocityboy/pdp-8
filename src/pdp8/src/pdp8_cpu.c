@@ -11,6 +11,58 @@ static void group_1(uint12_t op, pdp8_t *pdp8);
 static void group_2_and(uint12_t op, pdp8_t *pdp8);
 static void group_2_or(uint12_t op, pdp8_t *pdp8);
 
+
+static pdp8_model_flags_t models[] = {
+    {
+        PDP8,
+        PDP8_RARL_UNDEFINED,
+        PDP8_RTRL_UNDEFINED,
+        PDP8_IAC_ROTS_UNSUPPORTED |
+        PDP8_IOT0_IS_IAC |
+        PDP8_CLA_NMI_HANGS,
+    },
+    {
+        PDP8_S,
+        PDP8_RARL_UNDEFINED,
+        PDP8_RTRL_UNDEFINED,
+        PDP8_IAC_ROTS_UNSUPPORTED |
+        PDP8_CMA_ROTS_UNSUPPORTED |
+        PDP8_CLA_NMI_HANGS,
+    },
+    {
+        PDP8_I,
+        PDP8_RARL_AND,
+        PDP8_RTRL_AND,
+        PDP8_CLA_NMI_HANGS |
+        PDP8_SWP_SUPPORTED,
+    },
+    {
+        PDP8_L,
+        PDP8_RARL_AND,
+        PDP8_RTRL_AND,
+        PDP8_CLA_NMI_HANGS |
+        PDP8_EAE_UNSUPPORTED,
+    },
+    {
+        PDP8_E,
+        PDP8_RARL_AND_INSTR,
+        PDP8_RTRL_PAGE_INSTR,
+        PDP8_SWP_SUPPORTED |
+        PDP8_BSW_SUPPORTED |
+        PDP8_EAE_HAS_MODE_B,
+    },
+    {
+        PDP8_A,
+        PDP8_RARL_AND_INSTR,
+        PDP8_RTRL_NEXT_ADDR,
+        PDP8_SWP_SUPPORTED |
+        PDP8_BSW_SUPPORTED |
+        PDP8_EAE_HAS_MODE_B,
+    },    
+};
+
+static int model_count = sizeof(models) / sizeof(models[0]);
+
 /*
  * Create a new emulator instance.
  */
@@ -28,6 +80,8 @@ pdp8_t *pdp8_create() {
     }
     pdp8->run = 1;
 
+    pdp8_set_model(pdp8, PDP8_E);
+
     return pdp8;
 }
 
@@ -42,17 +96,39 @@ void pdp8_free(pdp8_t *pdp8) {
 }
 
 /*
- * Return the entire emulator (including core) to a blank slate
+ * Set the model
+ */
+int pdp8_set_model(pdp8_t *pdp8, pdp8_model_t model) {
+    int found = 0;
+    for (int i = 0; i < model_count; i++) {
+        if (models[i].model == model) {
+            pdp8->flags = models[i];
+            found = 1;
+            break;
+        }
+    }
+
+    return found ? 0 : -1;
+}
+
+
+/*
+ * Return the entire emulator (including core) to a blank slate.
+ * Does not change what model the machine is.
  */
 extern void pdp8_clear(pdp8_t *pdp8) {
     uint12_t *core = pdp8->core;
     int core_size = pdp8->core_size;
+    pdp8_model_flags_t flags = pdp8->flags;
+
     memset(pdp8, 0, sizeof(pdp8_t));
     memset(core, 0, core_size * sizeof(uint12_t));
 
     pdp8->core = core;
     pdp8->core_size = core_size;
     pdp8->run = 1;
+
+    pdp8->flags = flags;
 }
 
 /*
@@ -243,6 +319,7 @@ static void group_2_and(uint12_t op, pdp8_t *pdp8) {
     }
     
     if ((op & PDP8_OPR_GRP2_HLT) != 0) {
+        pdp8->halt_reason = PDP8_HALT_HLT_INSTRUCTION;
         pdp8->run = 0;
     }
     
@@ -276,6 +353,7 @@ static void group_2_or(uint12_t op, pdp8_t *pdp8) {
     }
     
     if ((op & PDP8_OPR_GRP2_HLT) != 0) {
+        pdp8->halt_reason = PDP8_HALT_HLT_INSTRUCTION;
         pdp8->run = 0;
     }
     

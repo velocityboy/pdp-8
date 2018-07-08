@@ -13,7 +13,7 @@ static void op_asr(pdp8_t *pdp8);
 static void op_lsr(pdp8_t *pdp8);
 
 void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
-    int eae = pdp8->option_eae;
+    int eae = pdp8->option_eae && ((pdp8->flags.flags & PDP8_EAE_UNSUPPORTED) == 0);
 
     if ((op & PDP8_OPR_CLA) != 0) {
         pdp8->ac = 0;
@@ -22,6 +22,10 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
     /* if both MQA and MQL are set, then MQ and AC are exchanged */
     const uint12_t SWP = PDP8_OPR_GRP3_MQA | PDP8_OPR_GRP3_MQL;
     if ((op & SWP) == SWP) {
+        if ((pdp8->flags.flags & PDP8_SWP_SUPPORTED) == 0) {
+            pdp8->run = 0;
+            pdp8->halt_reason = PDP8_HALT_SWP_UNSUPPORTED;
+        }
         uint12_t ac = pdp8->ac;
         pdp8->ac = pdp8->mq;
         pdp8->mq = ac;

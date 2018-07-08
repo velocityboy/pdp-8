@@ -323,6 +323,7 @@ DECLARE_TEST(cpu_group2_HLT, "HLT instruction") {
     pdp8_step(pdp8);
 
     ASSERT_V(pdp8->run == 0, "HLT clears the RUN flip-flop");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_HLT_INSTRUCTION, "halt reason set to HLT");
     
     pdp8_free(pdp8);
 }
@@ -348,6 +349,7 @@ DECLARE_TEST(cpu_group2_sequencing, "group 2 microinstruction sequencing") {
     ASSERT_V(pdp8->run == 0, "HLT clears the RUN flip-flop");
     ASSERT_V(pdp8->ac == 01234, "AC loaded from SR");
     ASSERT_V(pdp8->pc == 01001, "SPA not executed");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_HLT_INSTRUCTION, "halt reason set to HLT");
     
     pdp8_free(pdp8);
 }

@@ -17,6 +17,24 @@ DECLARE_TEST(eae_disabled, "EAE ops are NOP if option is not installed") {
     pdp8_free(pdp8);
 }
 
+DECLARE_TEST(eae_not_on_8l, "EAE is not supported on the PDP-8/L") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8_set_model(pdp8, PDP8_L);
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_OPR_GRP3_SCA;
+    pdp8->ac = 00000;
+    pdp8->sc = 00037;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 00000, "AC not changed");
+
+    pdp8_free(pdp8);
+}
+
 DECLARE_TEST(eae_CLA, "EAE group CLA") {
     pdp8_t *pdp8 = pdp8_create();
 
@@ -374,6 +392,36 @@ DECLARE_TEST(eae_SWP, "EAE group SWP") {
     ASSERT_V(pdp8->mq == 00000, "MQ was cleared");
         
     pdp8_free(pdp8);        
+}
+
+DECLARE_TEST(eae_swp_not_on_8_8s, "EAE SWP not supported on PDP-8 or PDP-8/S") {
+    pdp8_t *pdp8 = pdp8_create();
+    pdp8_set_model(pdp8, PDP8);
+    
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_OPR_GRP3_MQA | PDP8_OPR_GRP3_MQL;
+    pdp8->mq = 07704;
+    pdp8->ac = 00017;
+    pdp8->pc = 01000;
+
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->run == 0, "machine was halted");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_SWP_UNSUPPORTED, "halt reason set");
+
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_S);
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_OPR_CLA | PDP8_OPR_GRP3_MQA | PDP8_OPR_GRP3_MQL;
+    pdp8->mq = 07704;
+    pdp8->ac = 00017;
+    pdp8->pc = 01000;
+
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->run == 0, "machine was halted");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_SWP_UNSUPPORTED, "halt reason set");
+        
+    pdp8_free(pdp8);        
+    
 }
 
 DECLARE_TEST(eae_sequencing, "EAE group sequencing") {
