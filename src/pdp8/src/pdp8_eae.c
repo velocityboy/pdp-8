@@ -5,6 +5,9 @@ static const int ACSHIFT = 12;
 static const int AC0SHIFT = 23;
 static const int AC1SHIFT = 22;
 
+static void mode_a_codes(uint12_t op, pdp8_t *pdp8);
+static void mode_b_codes(uint12_t op, pdp8_t *pdp8);
+
 static void op_muy(pdp8_t *pdp8);
 static void op_dvi(pdp8_t *pdp8);
 static void op_nmi(pdp8_t *pdp8);
@@ -34,8 +37,12 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
         return;
     }
 
-
     int eae = pdp8->option_eae && ((pdp8->flags.flags & PDP8_EAE_UNSUPPORTED) == 0);
+
+    /* per the docs, in mode A the GT FF (which only exists if mode B exists) is always cleared. */
+    if ((pdp8->flags.flags & PDP8_EAE_HAS_MODE_B) != 0 && !pdp8->eae_mode_b) {
+        pdp8->gt = 0;
+    }
 
     if ((op & PDP8_OPR_CLA) != 0) {
         pdp8->ac = 0;
@@ -62,14 +69,23 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
         }
     }
 
-    if (eae && (op & PDP8_OPR_GRP3_SCA) != 0) {
-        pdp8->ac |= pdp8->sc;
+    /* in mode B, the SCA bit is not supported and becomes part of the instruction code */
+    if (!pdp8->eae_mode_b) {
+        if (eae && (op & PDP8_OPR_GRP3_SCA) != 0) {
+            pdp8->ac |= pdp8->sc;
+        }
     }
 
-    if (!eae) {
-        return;
+    if (eae) {
+        if (pdp8->eae_mode_b) {
+            mode_b_codes(op, pdp8);
+        } else {
+            mode_a_codes(op, pdp8);
+        }
     }
+}
 
+static void mode_a_codes(uint12_t op, pdp8_t *pdp8) {
     switch (PDP8_OPR_GRP3_CODE(op)) {
         case PDP8_GRP3_CODE_NOP:
             break;
@@ -107,7 +123,7 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
         case PDP8_GRP3_CODE_LSR:
             op_lsr(pdp8);
             break;
-    }
+    }    
 }
 
 /* multiply and divide. these are unsigned, not 2's complement, operations */
@@ -214,4 +230,8 @@ static void op_lsr(pdp8_t *pdp8) {
     pdp8->link = 0;
     pdp8->ac = (temp >> ACSHIFT) & MASK12;
     pdp8->mq = temp & MASK12;    
+}
+
+static void mode_b_codes(uint12_t op, pdp8_t *pdp8) {
+
 }
