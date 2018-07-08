@@ -237,6 +237,22 @@ static uint12_t effective_address(uint12_t op, pdp8_t *pdp8) {
  * Execute an OPR group 1 instruction.
  */
 static void group_1(uint12_t op, pdp8_t *pdp8) {
+    /* On some models, some bit combos are unsupported. */
+    if ((op & (PDP8_OPR_GRP1_RAL | PDP8_OPR_GRP1_RAR)) != 0) {
+        unsigned flags = pdp8->flags.flags;
+        if (((op & PDP8_OPR_GRP1_CMA) != 0) && ((flags & PDP8_CMA_ROTS_UNSUPPORTED) != 0)) {
+            pdp8->run = 0;
+            pdp8->halt_reason = PDP8_HALT_CMA_ROTS_UNSUPPORTED;
+            return;
+        }
+
+        if (((op & PDP8_OPR_GRP1_IAC) != 0) && ((flags & PDP8_IAC_ROTS_UNSUPPORTED) != 0)) {
+            pdp8->run = 0;
+            pdp8->halt_reason = PDP8_HALT_IAC_ROTS_UNSUPPORTED;
+            return;
+        }
+    }
+
     /* CLA, CLL, CMA, CLL are all in event slot 1, but STL is CLL + CML, so
      * the clears must apply first.
      */

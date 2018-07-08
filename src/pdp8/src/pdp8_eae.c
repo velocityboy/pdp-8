@@ -13,6 +13,15 @@ static void op_asr(pdp8_t *pdp8);
 static void op_lsr(pdp8_t *pdp8);
 
 void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
+    /* on early machines, CLA+NMI with AC != 0 would hang */
+    if ((pdp8->flags.flags & PDP8_CLA_NMI_HANGS) != 0 &&
+        pdp8->ac != 0 &&
+        PDP8_OPR_GRP3_CODE(op) == PDP8_GRP3_CODE_NMI) {
+        pdp8->run = 0;
+        pdp8->halt_reason = PDP8_HALT_CLA_NMI_UNSUPPORTED;
+        return;
+    }
+
     int eae = pdp8->option_eae && ((pdp8->flags.flags & PDP8_EAE_UNSUPPORTED) == 0);
 
     if ((op & PDP8_OPR_CLA) != 0) {

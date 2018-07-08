@@ -45,6 +45,7 @@ typedef enum {
 #define PDP8_SWP_SUPPORTED        00000040 /* SWP (AC <=> MQ) supported */
 #define PDP8_EAE_HAS_MODE_B       00000100 /* EAE option has mode B instructions */
 #define PDP8_EAE_UNSUPPORTED      00000200 /* EAE option is not supported */
+#define PDP8_SCL_SUPPORTED        00000400 /* SCL instruction works in EAE */
 
 typedef struct pdp8_model_flags_t {
     pdp8_model_t model;
@@ -69,6 +70,9 @@ typedef enum pdp8_halt_reason_t pdp8_halt_reason_t;
 enum pdp8_halt_reason_t {
     PDP8_HALT_HLT_INSTRUCTION,
     PDP8_HALT_SWP_UNSUPPORTED,
+    PDP8_HALT_IAC_ROTS_UNSUPPORTED,
+    PDP8_HALT_CMA_ROTS_UNSUPPORTED,
+    PDP8_HALT_CLA_NMI_UNSUPPORTED,
 };
 
 /*

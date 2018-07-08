@@ -449,3 +449,66 @@ DECLARE_TEST(eae_sequencing, "EAE group sequencing") {
     pdp8_free(pdp8);
 }
 
+DECLARE_TEST(eae_cli_nmi_hang, "EAE CLA+NMI with AC != 0 hangs on early machines") {
+    pdp8_t *pdp8 = pdp8_create();
+    pdp8_set_model(pdp8, PDP8);    
+
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_OPR_CLA | PDP8_GRP3_CODE_NMI;
+    pdp8->link = 0;
+    pdp8->ac = 01234;
+    pdp8->mq = 07654;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;
+
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->run == 0, "CPU halted");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_CLA_NMI_UNSUPPORTED, "HALT reasons set");
+
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_S);    
+    
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_OPR_CLA | PDP8_GRP3_CODE_NMI;
+    pdp8->link = 0;
+    pdp8->ac = 01234;
+    pdp8->mq = 07654;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;   
+
+    pdp8_step(pdp8);    
+
+    ASSERT_V(pdp8->run == 0, "CPU halted");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_CLA_NMI_UNSUPPORTED, "HALT reasons set");
+    
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_I);    
+    
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_OPR_CLA | PDP8_GRP3_CODE_NMI;
+    pdp8->link = 0;
+    pdp8->ac = 01234;
+    pdp8->mq = 07654;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;   
+
+    pdp8_step(pdp8);    
+
+    ASSERT_V(pdp8->run == 0, "CPU halted");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_CLA_NMI_UNSUPPORTED, "HALT reasons set");
+    
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_L);    
+    
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_OPR_CLA | PDP8_GRP3_CODE_NMI;
+    pdp8->link = 0;
+    pdp8->ac = 01234;
+    pdp8->mq = 07654;
+    pdp8->pc = 01000;
+    pdp8->option_eae = 1;   
+
+    pdp8_step(pdp8);    
+
+    ASSERT_V(pdp8->run == 0, "CPU halted");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_CLA_NMI_UNSUPPORTED, "HALT reasons set");
+    
+    pdp8_free(pdp8);
+}

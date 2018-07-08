@@ -244,3 +244,48 @@ DECLARE_TEST(cpu_group1_IAC_RTR, "IAC RTL instruction") {
 
     pdp8_free(pdp8);
 }
+
+DECLARE_TEST(cpu_group1_unsupported, "model-specific unsupported microinstruction combinations") {
+    pdp8_t *pdp8 = pdp8_create();
+    pdp8_set_model(pdp8, PDP8_S);    
+    
+    /* ROT + CMA unsupported on 8/S */    
+    pdp8->core[01000] = PDP8_OPR_GRP1 | PDP8_OPR_GRP1_CMA | PDP8_OPR_GRP1_RAL;
+    pdp8->ac = 00707;
+    pdp8->link = 0;
+    pdp8->pc = 01000;
+
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->run == 0, "CPU halted on CMA+ROT on PDP8_S");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_CMA_ROTS_UNSUPPORTED, "Halt reason set on CMA+ROT on PDP8_S");
+
+    /* ROT + IAC unsupported on straight 8 and 8/S */    
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8);
+
+    pdp8->core[01000] = PDP8_OPR_GRP1 | PDP8_OPR_GRP1_IAC | PDP8_OPR_GRP1_RAL;
+    pdp8->ac = 00707;
+    pdp8->link = 0;
+    pdp8->pc = 01000;
+
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->run == 0, "CPU halted on IAC+ROT on PDP8");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_IAC_ROTS_UNSUPPORTED, "Halt reason set on IAC+ROT on PDP8");
+ 
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_S);
+
+    pdp8->core[01000] = PDP8_OPR_GRP1 | PDP8_OPR_GRP1_IAC | PDP8_OPR_GRP1_RAL;
+    pdp8->ac = 00707;
+    pdp8->link = 0;
+    pdp8->pc = 01000;
+
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->run == 0, "CPU halted on IAC+ROT on PDP8_S");
+    ASSERT_V(pdp8->halt_reason == PDP8_HALT_IAC_ROTS_UNSUPPORTED, "Halt reason set on IAC+ROT on PDP8_S");
+
+    pdp8_free(pdp8);    
+}
