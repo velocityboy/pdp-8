@@ -19,17 +19,25 @@ void pdp8_group3(uint12_t op, pdp8_t *pdp8) {
         pdp8->ac = 0;
     }
 
-    if ((op & PDP8_OPR_GRP3_MQA) != 0) {
-        pdp8->ac |= pdp8->mq;
+    /* if both MQA and MQL are set, then MQ and AC are exchanged */
+    const uint12_t SWP = PDP8_OPR_GRP3_MQA | PDP8_OPR_GRP3_MQL;
+    if ((op & SWP) == SWP) {
+        uint12_t ac = pdp8->ac;
+        pdp8->ac = pdp8->mq;
+        pdp8->mq = ac;
+    } else {
+        if ((op & PDP8_OPR_GRP3_MQA) != 0) {
+            pdp8->ac |= pdp8->mq;
+        }
+
+        if ((op & PDP8_OPR_GRP3_MQL) != 0) {
+            pdp8->mq = pdp8->ac;
+            pdp8->ac = 0;
+        }
     }
 
     if (eae && (op & PDP8_OPR_GRP3_SCA) != 0) {
         pdp8->ac |= pdp8->sc;
-    }
-
-    if ((op & PDP8_OPR_GRP3_MQL) != 0) {
-        pdp8->mq = pdp8->ac;
-        pdp8->ac = 0;
     }
 
     if (!eae) {

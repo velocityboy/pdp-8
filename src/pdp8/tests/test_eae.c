@@ -345,6 +345,37 @@ DECLARE_TEST(eae_ASR, "EAE group ASR") {
     pdp8_free(pdp8);
 }
 
+DECLARE_TEST(eae_SWP, "EAE group SWP") {
+    pdp8_t *pdp8 = pdp8_create();
+    
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_OPR_GRP3_MQA | PDP8_OPR_GRP3_MQL;
+    pdp8->ac = 07704;
+    pdp8->mq = 00017;
+    pdp8->pc = 01000;
+
+    /* this operation works even if the EAE option is not installed. */
+    
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->ac == 00017, "AC was swapped");
+    ASSERT_V(pdp8->mq == 07704, "MQ was swapped");
+
+    pdp8_clear(pdp8);
+    pdp8->core[01000] = PDP8_OPR_GRP3 | PDP8_OPR_CLA | PDP8_OPR_GRP3_MQA | PDP8_OPR_GRP3_MQL;
+    pdp8->ac = 07704;
+    pdp8->mq = 00017;
+    pdp8->pc = 01000;
+
+    /* this operation works even if the EAE option is not installed. */
+    
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->ac == 00017, "AC was swapped");
+    ASSERT_V(pdp8->mq == 00000, "MQ was cleared");
+        
+    pdp8_free(pdp8);        
+}
+
 DECLARE_TEST(eae_sequencing, "EAE group sequencing") {
     /* CLA comes before MQA, SCA, and MQL; this is tested above 
      * here we will test MQA => instr code 

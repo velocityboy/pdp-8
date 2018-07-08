@@ -104,6 +104,9 @@ typedef enum pdp8_op_t {
 #define PDP8_OPR_GRP3_MQL BIT7
 #define PDP8_OPR_GRP3_CODE(w) ((w) & 00016)
 
+/* Group 3 with both MQA and MQL is a special case for SWP */
+#define PDP8_OPR_GRP3_SWP 07521
+
 typedef enum pdp8_grp3_code {
     PDP8_GRP3_CODE_NOP = 000,
     PDP8_GRP3_CODE_SCL = 002,
