@@ -245,6 +245,72 @@ DECLARE_TEST(cpu_group1_IAC_RTR, "IAC RTL instruction") {
     pdp8_free(pdp8);
 }
 
+DECLARE_TEST(cpu_group1_BSW, "BSW instruction") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    pdp8->core[01000] = PDP8_OPR_GRP1 | PDP8_OPR_GRP1_RTWO;
+    pdp8->ac = 02255;
+    pdp8->pc = 01000;
+
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 05522, "AC byte swapped");
+
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(cpu_group1_BSW_is_NOP, "BSW instruction is NOP on early machines") {
+    pdp8_t *pdp8 = pdp8_create();
+    pdp8_set_model(pdp8, PDP8);
+
+    pdp8->core[01000] = PDP8_OPR_GRP1 | PDP8_OPR_GRP1_RTWO;
+    pdp8->ac = 02255;
+    pdp8->pc = 01000;
+
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 02255, "BSW is NOP on PDP-8");
+
+    pdp8_clear(pdp8);
+
+    pdp8_set_model(pdp8, PDP8_S);
+
+    pdp8->core[01000] = PDP8_OPR_GRP1 | PDP8_OPR_GRP1_RTWO;
+    pdp8->ac = 02255;
+    pdp8->pc = 01000;
+
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->ac == 02255, "BSW is NOP on PDP-8/S");
+
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_I);
+    
+    pdp8->core[01000] = PDP8_OPR_GRP1 | PDP8_OPR_GRP1_RTWO;
+    pdp8->ac = 02255;
+    pdp8->pc = 01000;
+    
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->ac == 02255, "BSW is NOP on PDP-8/I");
+    
+    pdp8_clear(pdp8);
+    pdp8_set_model(pdp8, PDP8_L);
+    
+    pdp8->core[01000] = PDP8_OPR_GRP1 | PDP8_OPR_GRP1_RTWO;
+    pdp8->ac = 02255;
+    pdp8->pc = 01000;
+    
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->ac == 02255, "BSW is NOP on PDP-8/L");
+    
+    pdp8_clear(pdp8);
+
+    
+    pdp8_free(pdp8);
+}
+
 DECLARE_TEST(cpu_group1_unsupported, "model-specific unsupported microinstruction combinations") {
     pdp8_t *pdp8 = pdp8_create();
     pdp8_set_model(pdp8, PDP8_S);    

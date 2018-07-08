@@ -297,7 +297,7 @@ static void group_1(uint12_t op, pdp8_t *pdp8) {
         /* model specific - on 8/E and later, the double-shift bit by itself
          * swaps the low and high 6 bits of AC
          */       
-        if ((op & PDP8_OPR_GRP1_RTWO) != 0) {
+        if ((pdp8->flags.flags & PDP8_BSW_SUPPORTED) != 0 && (op & PDP8_OPR_GRP1_RTWO) != 0) {
             pdp8->ac =
                 ((pdp8->ac & 077600) >> 6) | ((pdp8->ac & 000177) << 6);
         }
