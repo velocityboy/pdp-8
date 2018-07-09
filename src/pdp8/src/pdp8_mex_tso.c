@@ -59,9 +59,24 @@ static void mex_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
         return;
     }
 
+    if (MEX_FIELD_OP(opword) == MEX_CIF) {
+        pdp8->ibr = MEX_FIELD_OF(opword) << 12;
+        return;
+    }
+
+    if (MEX_FIELD_OP(opword) == MEX_CDF_CIF) {
+        pdp8->dfr = MEX_FIELD_OF(opword) << 12;
+        pdp8->ibr = pdp8->dfr;
+        return;
+    }
+    
     switch (opword) {
         case MEX_RDF:
             pdp8->ac |= (((pdp8->dfr >> 12) & 07) << 3);
+            break;
+
+        case MEX_RIF:
+            pdp8->ac |= (((pdp8->ifr >> 12) & 07) << 3);
             break;
     }
 }
