@@ -4,6 +4,7 @@ add_library(pdp8
   pdp8/src/dislib.c
   pdp8/src/pdp8_cpu.c
   pdp8/src/pdp8_eae.c
+  pdp8/src/pdp8_mex_tso.c
   pdp8/src/pdp8_util.c)
 
 add_executable(pdp8_tests
@@ -11,7 +12,8 @@ add_executable(pdp8_tests
   pdp8/tests/test_cpu.c
   pdp8/tests/test_cpu_group1.c  
   pdp8/tests/test_cpu_group2.c
-  pdp8/tests/test_eae.c)  
+  pdp8/tests/test_eae.c
+  pdp8/tests/test_mex.c)  
 target_link_libraries(pdp8_tests pdp8)
 
 target_include_directories(pdp8

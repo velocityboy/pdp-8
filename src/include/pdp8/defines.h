@@ -22,9 +22,13 @@
 
 #define MASK12 07777
 
+#define INC12(w) (((w) + 1) & MASK12)
+
 /* memory sizes */
-#define PDP8_STD_CORE_WORDS 4096
-#define PDP8_MEX_CORE_WORDS 32768
+#define PDP8_FIELD_SIZE 4096
+#define PDP8_MAX_FIELDS 8
+#define PDP8_STD_CORE_WORDS PDP8_FIELD_SIZE
+#define PDP8_MAX_CORE_WORDS (PDP8_MAX_FIELDS * PDP8_FIELD_SIZE)
 
 /* registers */
 typedef enum pdp8_reg_t {

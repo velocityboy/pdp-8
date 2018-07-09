@@ -111,7 +111,7 @@ static void mode_a_codes(uint12_t op, pdp8_t *pdp8) {
                 return;
             }
             pdp8->sc = (~pdp8->core[pdp8->pc]) & 00037;
-            pdp8->pc = (pdp8->pc + 1) & 07777;
+            pdp8->pc = INC12(pdp8->pc);
             break;
 
         case PDP8_GRP3_CODE_MUY:
@@ -143,14 +143,14 @@ static void mode_a_codes(uint12_t op, pdp8_t *pdp8) {
 /* multiply and divide. these are unsigned, not 2's complement, operations */
 
 static void op_muy(pdp8_t *pdp8) {
-    uint12_t term = pdp8->core[pdp8->pc];
-    pdp8->pc = (pdp8->pc + 1) & MASK12;
+    uint12_t term = pdp8->core[pdp8->ifr | pdp8->pc];
+    pdp8->pc = INC12(pdp8->pc);
     muy(pdp8, term);
 }
 
 static void op_dvi(pdp8_t *pdp8) {
-    uint12_t divisor = pdp8->core[pdp8->pc];
-    pdp8->pc = (pdp8->pc + 1) & MASK12;
+    uint12_t divisor = pdp8->core[pdp8->ifr | pdp8->pc];
+    pdp8->pc = INC12(pdp8->pc);
     div(pdp8, divisor);
 }
 
@@ -188,12 +188,12 @@ static void op_nmi(pdp8_t *pdp8) {
 }
 
 static void op_shl(pdp8_t *pdp8) {
-    int shifts = (pdp8->core[pdp8->pc] & 037);
+    int shifts = (pdp8->core[pdp8->ifr | pdp8->pc] & 037);
     if (!pdp8->eae_mode_b) {
         shifts++;
     }
 
-    pdp8->pc = (pdp8->pc + 1) & MASK12;
+    pdp8->pc = INC12(pdp8->pc);
     uint32_t temp = (pdp8->link << 24) | (pdp8->ac << 12) | pdp8->mq;
     
     temp <<= shifts;
@@ -205,12 +205,12 @@ static void op_shl(pdp8_t *pdp8) {
 }
 
 static void op_asr(pdp8_t *pdp8) {
-    int shifts = (pdp8->core[pdp8->pc] & 037);
+    int shifts = (pdp8->core[pdp8->ifr | pdp8->pc] & 037);
     if (!pdp8->eae_mode_b) {
         shifts++;
     }
 
-    pdp8->pc = (pdp8->pc + 1) & MASK12;
+    pdp8->pc = INC12(pdp8->pc);
     int32_t temp = 0;
     if (pdp8->ac & BIT0) {
         temp = -1 & ~077777777;
@@ -230,12 +230,12 @@ static void op_asr(pdp8_t *pdp8) {
 }
 
 static void op_lsr(pdp8_t *pdp8) {
-    int shifts = (pdp8->core[pdp8->pc] & 037);
+    int shifts = (pdp8->core[pdp8->ifr | pdp8->pc] & 037);
     if (!pdp8->eae_mode_b) {
         shifts++;
     }
 
-    pdp8->pc = (pdp8->pc + 1) & MASK12;
+    pdp8->pc = INC12(pdp8->pc);
     uint32_t temp = (pdp8->ac << 12) | pdp8->mq;
 
     if (pdp8->eae_mode_b && shifts != 0) {
@@ -327,41 +327,46 @@ static void op_b_acs(pdp8_t *pdp8) {
     pdp8->ac = 0;
 }
 
-static void op_b_muy(pdp8_t *pdp8) {    
-    uint12_t addr = pdp8->core[pdp8->pc];
-    if ((pdp8->pc & 07770) == 00010) {
-        addr = (addr + 1) & MASK12;
-        pdp8->core[pdp8->pc] = addr;
+static void op_b_muy(pdp8_t *pdp8) {
+    uint16_t pc = pdp8->ifr | pdp8->pc;
+    uint12_t addr = pdp8->core[pc];
+    if ((pc & 07770) == 00010) {
+        addr = INC12(addr);
+        pdp8_write_if_safe(pdp8, pc, addr);
     }
 
-    pdp8->pc = (pdp8->pc + 1) & MASK12;
-    uint12_t term = pdp8_read_data_word(pdp8, addr);
+    pdp8->pc = INC12(pdp8->pc);
+    uint12_t term = pdp8->core[pdp8->dfr | addr];
     muy(pdp8, term);
 }
 
 static void op_b_dvi(pdp8_t *pdp8) {
-    uint12_t addr = pdp8->core[pdp8->pc];
-    if ((pdp8->pc & 07770) == 00010) {
-        addr = (addr + 1) & MASK12;
-        pdp8->core[pdp8->pc] = addr;
+    uint16_t pc = pdp8->ifr | pdp8->pc;
+    uint12_t addr = pdp8->core[pc];
+    if ((pc & 07770) == 00010) {
+        addr = INC12(addr);
+        pdp8_write_if_safe(pdp8, pc, addr);
     }
-    pdp8->pc = (pdp8->pc + 1) & MASK12;
-    uint12_t divisor = pdp8_read_data_word(pdp8, addr);
+
+    pdp8->pc = INC12(pdp8->pc);
+    uint12_t divisor = pdp8->core[pdp8->dfr | addr];
     div(pdp8, divisor);
 }
 
 static void op_b_dad(pdp8_t *pdp8) {
-    uint12_t addr = pdp8->core[pdp8->pc];
-    if ((pdp8->pc & 07770) == 00010) {
-        addr = (addr + 1) & MASK12;
-        pdp8->core[pdp8->pc] = addr;
+    uint16_t pc = pdp8->ifr | pdp8->pc;
+    uint12_t addr = pdp8->core[pc];
+    if ((pc & 07770) == 00010) {
+        addr = INC12(addr);
+        pdp8_write_if_safe(pdp8, pc, addr);
     }
-    pdp8->pc = (pdp8->pc + 1) & MASK12;
+
+    pdp8->pc = INC12(pdp8->pc);
 
     uint32_t x = (pdp8->ac << ACSHIFT) | pdp8->mq;
-    uint32_t y = pdp8_read_data_word(pdp8, addr);
-    addr = (addr + 1) & MASK12;
-    y |= pdp8_read_data_word(pdp8, addr) << 12;
+    uint32_t y = pdp8->core[pdp8->dfr | addr];
+    addr = INC12(addr);
+    y |= (pdp8->core[pdp8->dfr | addr] << 12);
 
     uint32_t sum = x + y;
 
@@ -371,21 +376,23 @@ static void op_b_dad(pdp8_t *pdp8) {
 }
 
 static void op_b_dst(pdp8_t *pdp8) {
-    uint12_t addr = pdp8->core[pdp8->pc];
-    if ((pdp8->pc & 07770) == 00010) {
-        addr = (addr + 1) & MASK12;
-        pdp8->core[pdp8->pc] = addr;
+    uint16_t pc = pdp8->ifr | pdp8->pc;
+    uint12_t addr = pdp8->core[pc];
+    if ((pc & 07770) == 00010) {
+        addr = INC12(addr);
+        pdp8_write_if_safe(pdp8, pc, addr);
     }
-    pdp8->pc = (pdp8->pc + 1) & MASK12;
 
-    pdp8_write_data_word(pdp8, addr, pdp8->mq);
-    addr = (addr + 1) & MASK12;
-    pdp8_write_data_word(pdp8, addr, pdp8->ac);
+    pdp8->pc = INC12(pdp8->pc);
+
+    pdp8_write_if_safe(pdp8, pdp8->dfr | addr, pdp8->mq);
+    addr = INC12(addr);
+    pdp8_write_if_safe(pdp8, pdp8->dfr | addr, pdp8->ac);
 }
 
 static void op_b_dpsz(pdp8_t *pdp8) {
     if (pdp8->ac == 0 && pdp8->mq == 0) {
-        pdp8->pc = (pdp8->pc + 1) & MASK12;
+        pdp8->pc = INC12(pdp8->pc);
     }
 }
 

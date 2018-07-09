@@ -6,7 +6,7 @@
 
 #include "pdp8_eae.h"
 
-static uint12_t effective_address(uint12_t op, pdp8_t *pdp8);
+static uint16_t effective_address(uint12_t op, pdp8_t *pdp8);
 static void group_1(uint12_t op, pdp8_t *pdp8);
 static void group_2_and(uint12_t op, pdp8_t *pdp8);
 static void group_2_or(uint12_t op, pdp8_t *pdp8);
@@ -84,11 +84,6 @@ pdp8_t *pdp8_create() {
     }
 
     pdp8->core_size = PDP8_STD_CORE_WORDS;
-    pdp8->core = calloc(sizeof(uint12_t), pdp8->core_size);
-    if (pdp8->core == NULL) {
-        free(pdp8);
-        return NULL;
-    }
     pdp8->run = 1;
 
     pdp8_set_model(pdp8, PDP8_E);
@@ -101,7 +96,11 @@ pdp8_t *pdp8_create() {
  */
 void pdp8_free(pdp8_t *pdp8) {
     if (pdp8) {
-        free(pdp8->core);
+        while (pdp8->devices) {
+            pdp8_device_t *next = pdp8->devices->next;
+            pdp8->devices->free(pdp8->devices);
+            pdp8->devices = next;
+        }
         free(pdp8);
     }
 }
@@ -119,27 +118,55 @@ int pdp8_set_model(pdp8_t *pdp8, pdp8_model_t model) {
         }
     }
 
-    return found ? 0 : -1;
+    return found ? 0 : PDP8_ERR_INVALID_ARG;
 }
 
+/* set available memory 
+ */
+int pdp8_set_mex_fields(pdp8_t *pdp8, int fields) {
+    if (fields < 1 || fields > PDP8_MAX_FIELDS) {
+        return PDP8_ERR_INVALID_ARG;
+    }
+
+    pdp8->core_size = PDP8_FIELD_SIZE * fields;
+    return 0;
+}
+
+int pdp8_install_device(pdp8_t *pdp8, pdp8_device_t *dev) {
+    int ret = dev->install(dev, pdp8);
+    if (ret < 0) {
+        return ret;
+    }
+
+    dev->next = pdp8->devices;
+    pdp8->devices = dev;
+
+    return 0;
+}
 
 /*
  * Return the entire emulator (including core) to a blank slate.
  * Does not change what model the machine is.
  */
 extern void pdp8_clear(pdp8_t *pdp8) {
-    uint12_t *core = pdp8->core;
-    int core_size = pdp8->core_size;
-    pdp8_model_flags_t flags = pdp8->flags;
-
-    memset(pdp8, 0, sizeof(pdp8_t));
-    memset(core, 0, core_size * sizeof(uint12_t));
-
-    pdp8->core = core;
-    pdp8->core_size = core_size;
+    memset(pdp8->core, 0, PDP8_MAX_CORE_WORDS * sizeof(uint12_t));
+    pdp8->ac = 0;
+    pdp8->link = 0;
     pdp8->run = 1;
+    pdp8->option_eae = 0;
+    pdp8->eae_mode_b = 0;
+    pdp8->gt = 0;
+    pdp8->pc = 0;
+    pdp8->sr = 0;
+    pdp8->mq = 0;
+    pdp8->sc = 0;
+    pdp8->ifr = 0;
+    pdp8->dfr = 0;
+    pdp8->ibr = 0;
 
-    pdp8->flags = flags;
+    for (pdp8_device_t *dev = pdp8->devices; dev; dev = dev->next) {
+        dev->reset(dev);
+    }
 }
 
 /*
@@ -150,12 +177,13 @@ void pdp8_step(pdp8_t *pdp8) {
         return;
     }
 
-    uint12_t opword = pdp8->core[pdp8->pc];
-    pdp8->pc = (pdp8->pc + 1) & MASK12;
+    uint12_t opword = pdp8->core[pdp8->ifr | pdp8->pc];
+    pdp8->pc = INC12(pdp8->pc);
 
     int oper = PDP8_OP(opword);
 
-    uint12_t ea;
+    uint16_t ea;
+    uint12_t temp;
     uint16_t sum;
 
     switch (oper) {
@@ -173,32 +201,36 @@ void pdp8_step(pdp8_t *pdp8) {
 
         case PDP8_OP_ISZ:
             ea = effective_address(opword, pdp8);
-            pdp8->core[ea] = (pdp8->core[ea] + 1) & MASK12;
-            if (pdp8->core[ea] == 0) {
-              pdp8->pc = (pdp8->pc + 1) & MASK12;
+            temp = INC12(pdp8->core[ea]);
+            pdp8_write_if_safe(pdp8, ea, temp);
+
+            if (temp == 0) {
+              pdp8->pc = INC12(pdp8->pc);
             }
             break;
 
         case PDP8_OP_DCA:
             ea = effective_address(opword, pdp8);
-            pdp8->core[ea] = pdp8->ac;
+            pdp8_write_if_safe(pdp8, ea, pdp8->ac);
             pdp8->ac = 0;
             break;
 
         case PDP8_OP_JMS:
-            ea = effective_address(opword, pdp8);
-            pdp8->core[ea] = pdp8->pc;
-            pdp8->pc = (ea + 1) & MASK12;
+            pdp8->ifr = pdp8->ibr;
+            ea = effective_address(opword, pdp8) & MASK12;
+            pdp8_write_if_safe(pdp8, pdp8->ifr | ea, pdp8->pc);
+            pdp8->pc = INC12(ea);
             break;
 
         case PDP8_OP_JMP:
-            pdp8->pc = effective_address(opword, pdp8);
+            pdp8->ifr = pdp8->ibr;
+            pdp8->pc = effective_address(opword, pdp8) & MASK12;
             break;
 
         case PDP8_OP_IOT: {
-            void (*handler)(uint12_t, pdp8_t *) = pdp8->device_handlers[PDP8_IOT_DEVICE_ID(opword)];
-            if (handler == NULL) {
-                handler(opword, pdp8);
+            pdp8_device_t *dev = pdp8->device_handlers[PDP8_IOT_DEVICE_ID(opword)];
+            if (dev) {
+                dev->dispatch(dev, pdp8, opword);
             }
             break;
         }
@@ -217,47 +249,40 @@ void pdp8_step(pdp8_t *pdp8) {
     }
 }
 
-/* read a word from instruction space */
-uint12_t pdp8_read_instr_word(pdp8_t *pdp8, uint12_t addr) {
-    /* TODO IF register */
-    return pdp8->core[addr];
-}
-
-/* write a word to data space */
-void pdp8_write_data_word(pdp8_t *pdp8, uint12_t addr, uint12_t value) {
-    /* TODO DF register */
-    pdp8->core[addr] = value;
-}
-
-/* read a word from data space */
-uint12_t pdp8_read_data_word(pdp8_t *pdp8, uint12_t addr) {
-    /* TODO DF register */
-    return pdp8->core[addr];
-}
-
 /*
  * Compute the effective address for a memory operation, taking 
  * indirection and PC relative addressing into account.
  */
-static uint12_t effective_address(uint12_t op, pdp8_t *pdp8) {
+static uint16_t effective_address(uint12_t op, pdp8_t *pdp8) {
     /* low 7 bits come from op encoding */
-    uint12_t addr = PDP8_M_OFFS(op);
+    uint16_t addr = PDP8_M_OFFS(op);
   
     /* bit 4, if set, means in same page as PC */
     if (PDP8_M_ZERO(op)) {
         uint12_t page = pdp8->pc & 07600;
         addr |= page;
     }
+
+    addr |= pdp8->ifr;
   
+    /* if addressing is direct, operand is taken using IF */
+    /* if indirect, indirect address is from IF and operand from DF */
+
     /* bit 3, if set, means indirect */
     if (PDP8_M_IND(op)) {
         /* auto-indexing */
-        if (addr >= 00010 && addr <= 00017) {
-            pdp8->core[addr] = (pdp8->core[addr] + 1) & MASK12;
+        uint12_t ea = pdp8->core[addr];
+
+        if ((addr & 07770) == 00010) {
+            /* per docs, each *field* contains 8 autoindex locations, so it is
+             * correct to have IF or'ed into addr here.
+             */
+            ea = INC12(ea);
+            pdp8_write_if_safe(pdp8, addr, ea);
         }
 
-        addr = pdp8->core[addr];
-    }
+        addr = ea | pdp8->dfr;        
+    } 
   
     return addr;
 }

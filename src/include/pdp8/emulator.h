@@ -61,7 +61,15 @@ typedef struct pdp8_t pdp8_t;
  * IOT device support
  */
 #define PDP8_DEVICE_IDS 0100
-typedef void (*device_handler_t)(uint12_t op, pdp8_t *pdp8);
+typedef struct pdp8_device_t pdp8_device_t;
+
+struct pdp8_device_t {
+    pdp8_device_t *next;
+    int (*install)(pdp8_device_t *dev, pdp8_t *pdp8);
+    void (*reset)(pdp8_device_t *dev);
+    void (*dispatch)(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword);
+    void (*free)(pdp8_device_t *dev);
+};
 
 /*
  * Why the machine halted
@@ -76,30 +84,54 @@ enum pdp8_halt_reason_t {
     PDP8_HALT_SCL_UNSUPPORTED,
 };
 
+/* 
+ * Returned error codes (always < 0)
+ */
+#define PDP8_ERR_INVALID_ARG (-1)
+#define PDP8_ERR_CONFLICT (-2)              /* device conflicts w/ already installed device */
+#define PDP8_ERR_MEMORY (-3)
+
 /*
  * PDP8 emulator state 
  */
 struct pdp8_t {
-    uint12_t *core;
+    uint12_t core[PDP8_MAX_CORE_WORDS];
     int core_size;
     uint12_t ac;
     unsigned link : 1;
     unsigned run : 1;
-    unsigned option_eae : 1;        /* Type 182 extended arithmetic element (i.e. mul and div) */
+    unsigned option_eae : 1;        /* Type 182 extended arithmetic element (i.e. mul and div), or KE8-E */
     unsigned eae_mode_b : 1;        /* Later EAE's: mode B instructions enabled */
     unsigned gt : 1;                /* EAE mode B GT register */
-    uint12_t pc;
-    uint12_t sr;        /* front panel switches */
+    uint12_t pc;                    /* program counter */
+    uint12_t sr;                    /* front panel switches */
 
     /* these registers are only used if option_eae is installed */
     uint12_t mq;
     uint12_t sc;
 
+    /* KM8-E registers if there is more than 4K installed 
+     * All field registers are stored shifted by 12 so they can just be or'ed with addresses
+     * We preallocate max memory so it's always safe to read, and we guard writes based on 
+     * core_size.
+     */
+    uint16_t ifr;           /* field for instruction fetches */
+    uint16_t dfr;           /* field for data fetches */
+    uint16_t ibr;           /* IF buffer - used during IF transitions */
+
     pdp8_halt_reason_t halt_reason;
     pdp8_model_flags_t flags;
 
-    device_handler_t device_handlers[PDP8_DEVICE_IDS];
+    pdp8_device_t *device_handlers[PDP8_DEVICE_IDS];
+    pdp8_device_t *devices;
 };
+
+/* all writes should be gated through this */
+static inline void pdp8_write_if_safe(pdp8_t *pdp8, uint16_t addr, uint12_t value) {
+    if (addr < pdp8->core_size) {
+        pdp8->core[addr] = value;
+    }
+}
 
 extern pdp8_t *pdp8_create();
 extern void pdp8_free(pdp8_t *pdp8);
@@ -107,16 +139,18 @@ extern void pdp8_free(pdp8_t *pdp8);
 /* default is PDP8_E */
 extern int pdp8_set_model(pdp8_t *pdp8, pdp8_model_t model);
 
+/* set the amount of memory. existing contents will be preserved (expect for the case where 
+ * it shrinks), but dangerous if things are already running! 
+ * memory is expressed in the number of 4k fields, 1 to 8.
+ */
+extern int pdp8_set_mex_fields(pdp8_t *pdp8, int fields);
+
+/* install a device */
+extern int pdp8_install_device(pdp8_t *pdp8, pdp8_device_t *dev);
+
 extern void pdp8_clear(pdp8_t *pdp8);
 extern void pdp8_step(pdp8_t *pdp8);
 
-/* if extended memory is enabled, then reading directly from core[] should
- * be avoided. these functions properly read from the selected instruction
- * or data space field.
- */
-extern uint12_t pdp8_read_instr_word(pdp8_t *pdp8, uint12_t addr);
-extern void pdp8_write_data_word(pdp8_t *pdp8, uint12_t addr, uint12_t value);
-extern uint12_t pdp8_read_data_word(pdp8_t *pdp8, uint12_t addr);
 
 /* utilities */
 extern int pdp8_disassemble(uint16_t addr, uint12_t op, char *decoded, int decodedLen);
