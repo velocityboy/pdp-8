@@ -21,6 +21,10 @@ static void op_b_dvi(pdp8_t *pdp8);
 static void op_b_nmi(pdp8_t *pdp8);
 static void op_b_dad(pdp8_t *pdp8);
 static void op_b_dst(pdp8_t *pdp8);
+static void op_b_dpsz(pdp8_t *pdp8);
+static void op_b_dpic(pdp8_t *pdp8);
+static void op_b_dcm(pdp8_t *pdp8);
+static void op_b_sam(pdp8_t *pdp8);
 
 static void muy(pdp8_t *pdp8, uint12_t term);
 static void div(pdp8_t *pdp8, uint12_t divisor);    
@@ -212,6 +216,10 @@ static void op_asr(pdp8_t *pdp8) {
         temp = -1 & ~077777777;
     }
     temp |= (pdp8->ac << 12) | pdp8->mq;
+
+    if (pdp8->eae_mode_b && shifts != 0) {
+        pdp8->gt = (temp & (1 << (shifts - 1))) ? 1 : 0;
+    }
     
     temp >>= shifts;
 
@@ -229,6 +237,10 @@ static void op_lsr(pdp8_t *pdp8) {
 
     pdp8->pc = (pdp8->pc + 1) & MASK12;
     uint32_t temp = (pdp8->ac << 12) | pdp8->mq;
+
+    if (pdp8->eae_mode_b && shifts != 0) {
+        pdp8->gt = (temp & (1 << (shifts - 1))) ? 1 : 0;
+    }
 
     temp >>= shifts;
 
@@ -291,7 +303,22 @@ static void mode_b_codes(uint12_t op, pdp8_t *pdp8) {
         case PDP8_GRP3_CODE_B_DST:
             op_b_dst(pdp8);
             break;
+
+        case PDP8_GRP3_CODE_B_DPSZ:
+            op_b_dpsz(pdp8);
+            break;
+
+        case PDP8_GRP3_CODE_B_DPIC:
+            op_b_dpic(pdp8);
+            break;            
+
+        case PDP8_GRP3_CODE_B_DCM:
+            op_b_dcm(pdp8);
+            break; 
             
+        case PDP8_GRP3_CODE_B_SAM:
+            op_b_sam(pdp8);
+            break;
     } 
 }
 
@@ -354,6 +381,40 @@ static void op_b_dst(pdp8_t *pdp8) {
     pdp8_write_data_word(pdp8, addr, pdp8->mq);
     addr = (addr + 1) & MASK12;
     pdp8_write_data_word(pdp8, addr, pdp8->ac);
+}
+
+static void op_b_dpsz(pdp8_t *pdp8) {
+    if (pdp8->ac == 0 && pdp8->mq == 0) {
+        pdp8->pc = (pdp8->pc + 1) & MASK12;
+    }
+}
+
+static void op_b_dpic(pdp8_t *pdp8) {
+    uint32_t acmq = (pdp8->ac << ACSHIFT) | pdp8->mq;
+    acmq++;
+
+    pdp8->link = ((acmq >> LSHIFT) != 0) ? 1 : 0;
+    pdp8->ac = (acmq >> ACSHIFT) & MASK12;
+    pdp8->mq = acmq & MASK12;
+}
+
+static void op_b_dcm(pdp8_t *pdp8) {
+    uint32_t acmq = (pdp8->ac << ACSHIFT) | pdp8->mq;
+    acmq = ((~acmq) & 077777777) + 1;
+
+    pdp8->link = ((acmq >> LSHIFT) != 0) ? 1 : 0;
+    pdp8->ac = (acmq >> ACSHIFT) & MASK12;
+    pdp8->mq = acmq & MASK12;
+}
+
+static void op_b_sam(pdp8_t *pdp8) {
+    pdp8->link = pdp8->ac > pdp8->mq ? 1 : 0;
+
+    /* sign extend AC and MQ to native word size */
+    int sac = pdp8->ac | ((pdp8->ac & BIT0) ? ~MASK12 : 0);
+    int smq = pdp8->mq | ((pdp8->mq & BIT0) ? ~MASK12 : 0);
+
+    pdp8->gt = sac <= smq ? 1 : 0;
 }
 
 /*-----------------------------------------------------------------------------
