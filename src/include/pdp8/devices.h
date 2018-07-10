@@ -15,6 +15,8 @@
 
 #define MEX_RDF 06214
 #define MEX_RIF 06224
+#define MEX_RIB 06234
+#define MEX_RMF 06244
 
 extern int pdp8_install_mex_tso(pdp8_t *pdp8);
 

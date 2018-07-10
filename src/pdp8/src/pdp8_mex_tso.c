@@ -61,12 +61,14 @@ static void mex_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
 
     if (MEX_FIELD_OP(opword) == MEX_CIF) {
         pdp8->ibr = MEX_FIELD_OF(opword) << 12;
+        pdp8->intr_enable_mask |= PDP8_INTR_IFR_PENDING;
         return;
     }
 
     if (MEX_FIELD_OP(opword) == MEX_CDF_CIF) {
         pdp8->dfr = MEX_FIELD_OF(opword) << 12;
         pdp8->ibr = pdp8->dfr;
+        pdp8->intr_enable_mask |= PDP8_INTR_IFR_PENDING;
         return;
     }
     
@@ -77,6 +79,16 @@ static void mex_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
 
         case MEX_RIF:
             pdp8->ac |= (((pdp8->ifr >> 12) & 07) << 3);
+            break;
+
+        case MEX_RIB:
+            pdp8->ac |= pdp8->sf;
+            break;
+            
+        case MEX_RMF:
+            pdp8->ibr = (pdp8->sf << 9) & 070000;
+            pdp8->dfr = (pdp8->sf << 12) & 070000;
+            pdp8->intr_enable_mask |= PDP8_INTR_IFR_PENDING;
             break;
     }
 }

@@ -13,6 +13,7 @@ add_executable(pdp8_tests
   pdp8/tests/test_cpu_group1.c  
   pdp8/tests/test_cpu_group2.c
   pdp8/tests/test_eae.c
+  pdp8/tests/test_interrupts.c
   pdp8/tests/test_mex.c)  
 target_link_libraries(pdp8_tests pdp8)
 

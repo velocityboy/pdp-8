@@ -147,6 +147,16 @@ typedef enum pdp8_grp3_code_b_t {
 #define PDP8_SWAB 07431
 #define PDP8_SWBA 07447
 
+/* instructions which are coded as IOT but are part of the CPU */
+#define PDP8_SKON 06000
+#define PDP8_ION  06001
+#define PDP8_IOF  06002
+#define PDP8_SRQ  06003
+#define PDP8_GTF  06004
+#define PDP8_RTF  06005
+#define PDP8_SGT  06006
+#define PDP8_CAF  06007
+
 #endif
 
 

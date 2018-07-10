@@ -250,17 +250,19 @@ DECLARE_TEST(mex_CIF, "MEX change instruction field") {
     
     pdp8->core[01000] = MEX_MAKE_OP(MEX_CIF, 4);
     pdp8->core[01001] = PDP8_M_MAKE(PDP8_OP_JMP, 0, 00020);
-
+    pdp8->intr_enable_mask = PDP8_INTR_ION;
     pdp8->pc = 01000;
 
     pdp8_step(pdp8);
     ASSERT_V(pdp8->ibr == 040000, "IB register set");
     ASSERT_V(pdp8->ifr == 000000, "IF register not yet changed");
+    ASSERT_V(!pdp8_interrupts_enabled(pdp8), "Interrupts are disabled");
     
     pdp8_step(pdp8);
     ASSERT_V(pdp8->ifr == 040000, "IF register set");
     ASSERT_V(pdp8->pc == 00020, "PC set");
-
+    ASSERT_V(pdp8_interrupts_enabled(pdp8), "Interrupts are enabled");
+    
     pdp8_free(pdp8);
 }
 
@@ -632,5 +634,116 @@ DECLARE_TEST(mex_CIF_EAE, "MEX CIF works with EAE") {
     ASSERT_V(pdp8->core[022001] == 04444, "low word stored");
     ASSERT_V(pdp8->pc == 00022, "PC incremented past data");
 
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(mex_CDF_CIF, "MEX change data field and instr field") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    int ret = pdp8_install_mex_tso(pdp8);
+    ASSERT_V(ret >= 0, "successfully installed MEX hardware");
+    
+    ret = pdp8_set_mex_fields(pdp8, 8);
+    ASSERT_V(ret >= 0, "successfully installed max memory");
+    
+
+    pdp8->core[01000] = MEX_MAKE_OP(MEX_CDF_CIF, 4);
+    pdp8->core[01001] = PDP8_M_MAKE(PDP8_OP_JMP, 0, 00020);
+    pdp8->pc = 01000;
+    pdp8->intr_enable_mask = PDP8_INTR_ION;
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->dfr == 040000, "DF register set");
+    ASSERT_V(pdp8->ibr == 040000, "IB register set");
+    ASSERT_V(pdp8->ifr == 000000, "IF register not yet set");
+    ASSERT_V(!pdp8_interrupts_enabled(pdp8), "Interrupts are disabled");
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->dfr == 040000, "DF register set");
+    ASSERT_V(pdp8->ibr == 040000, "IB register set");
+    ASSERT_V(pdp8->ifr == 040000, "IF register set");
+    ASSERT_V(pdp8_interrupts_enabled(pdp8), "Interrupts are enabled");
+
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(mex_RIF, "MEX read instr field") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    int ret = pdp8_install_mex_tso(pdp8);
+    ASSERT_V(ret >= 0, "successfully installed MEX hardware");
+    
+    ret = pdp8_set_mex_fields(pdp8, 8);
+    ASSERT_V(ret >= 0, "successfully installed max memory");
+    
+
+    pdp8->core[01000] = MEX_MAKE_OP(MEX_CDF_CIF, 4);
+    pdp8->core[01001] = PDP8_M_MAKE(PDP8_OP_JMP, 0, 00020);
+    pdp8->core[040020]= MEX_RIF;
+    pdp8->pc = 01000;
+    pdp8->ac = 05515;
+
+    pdp8_step(pdp8);
+    pdp8_step(pdp8);
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->ac == 05555, "IF or'ed into AC");
+    
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(mex_RIB, "MEX read interrupt buffer") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    int ret = pdp8_install_mex_tso(pdp8);
+    ASSERT_V(ret >= 0, "successfully installed MEX hardware");
+    
+    ret = pdp8_set_mex_fields(pdp8, 8);
+    ASSERT_V(ret >= 0, "successfully installed max memory");
+    
+    pdp8->core[01000] = MEX_RIB;
+    pdp8->pc = 01000;
+    pdp8->ac = 05400;
+    pdp8->sf = 00155;
+
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->ac == 05555, "SF or'ed into AC");
+    
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(mex_RMF, "MEX restore memory field") {
+    pdp8_t *pdp8 = pdp8_create();
+
+    int ret = pdp8_install_mex_tso(pdp8);
+    ASSERT_V(ret >= 0, "successfully installed MEX hardware");
+    
+    ret = pdp8_set_mex_fields(pdp8, 8);
+    ASSERT_V(ret >= 0, "successfully installed max memory");
+    
+    pdp8->core[01000] = MEX_RMF;
+    pdp8->core[01001] = PDP8_M_MAKE(PDP8_OP_JMP, 0, 00020);
+    pdp8->pc = 01000;
+    pdp8->sf = 00045;
+    pdp8->intr_enable_mask = PDP8_INTR_ION;
+
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->ifr == 000000, "IF not yet updated");
+    ASSERT_V(pdp8->ibr == 040000, "IB updated");
+    ASSERT_V(pdp8->dfr == 050000, "DF updated");
+    ASSERT_V(!pdp8_interrupts_enabled(pdp8), "Interrupts are disabled");
+    
+    pdp8_step(pdp8);
+
+    ASSERT_V(pdp8->pc == 00020, "PC updated");
+    ASSERT_V(pdp8->ifr == 040000, "IF updated");
+    ASSERT_V(pdp8->ibr == 040000, "IB updated");
+    ASSERT_V(pdp8->dfr == 050000, "DF updated");
+    ASSERT_V(pdp8_interrupts_enabled(pdp8), "Interrupts enabled");
+    
     pdp8_free(pdp8);
 }

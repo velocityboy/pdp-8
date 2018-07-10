@@ -10,7 +10,7 @@ static uint16_t effective_address(uint12_t op, pdp8_t *pdp8);
 static void group_1(uint12_t op, pdp8_t *pdp8);
 static void group_2_and(uint12_t op, pdp8_t *pdp8);
 static void group_2_or(uint12_t op, pdp8_t *pdp8);
-
+static void cpu_iots(uint12_t op, pdp8_t *pdp8);
 
 static pdp8_model_flags_t models[] = {
     {
@@ -163,6 +163,11 @@ extern void pdp8_clear(pdp8_t *pdp8) {
     pdp8->ifr = 0;
     pdp8->dfr = 0;
     pdp8->ibr = 0;
+    pdp8->intr_mask = 0;
+    /* at startup, interrupts are off until enabled *and* a JMP/JMS has executed */
+    pdp8->intr_enable_mask = PDP8_INTR_IFR_PENDING;
+    pdp8->intr_enable_pend = 0;
+    pdp8->sf = 0;
 
     for (pdp8_device_t *dev = pdp8->devices; dev; dev = dev->next) {
         dev->reset(dev);
@@ -176,6 +181,21 @@ void pdp8_step(pdp8_t *pdp8) {
     if (!pdp8->run) {
         return;
     }
+
+    /* first, handle pending interrupts */
+    if (pdp8_interrupts_enabled(pdp8) && pdp8->intr_mask) {
+        pdp8->intr_enable_mask &= ~PDP8_INTR_ION;
+        pdp8->sf = 
+            ((pdp8->dfr >> 12) & 007) |
+            ((pdp8->ifr >>  9) & 070);
+        pdp8->dfr = 0;
+        pdp8->ifr = 0;
+        pdp8->core[0] = pdp8->pc;
+        pdp8->pc = 1;
+    }
+
+    /* then, update any pending interrupt state */
+    pdp8->intr_enable_mask &= ~PDP8_INTR_ION_PENDING;
 
     uint12_t opword = pdp8->core[pdp8->ifr | pdp8->pc];
     pdp8->pc = INC12(pdp8->pc);
@@ -220,17 +240,23 @@ void pdp8_step(pdp8_t *pdp8) {
             ea = effective_address(opword, pdp8) & MASK12;
             pdp8_write_if_safe(pdp8, pdp8->ifr | ea, pdp8->pc);
             pdp8->pc = INC12(ea);
+            pdp8->intr_enable_mask &= ~PDP8_INTR_IFR_PENDING;
             break;
 
         case PDP8_OP_JMP:
             pdp8->ifr = pdp8->ibr;
             pdp8->pc = effective_address(opword, pdp8) & MASK12;
+            pdp8->intr_enable_mask &= ~PDP8_INTR_IFR_PENDING;
             break;
 
         case PDP8_OP_IOT: {
-            pdp8_device_t *dev = pdp8->device_handlers[PDP8_IOT_DEVICE_ID(opword)];
-            if (dev) {
-                dev->dispatch(dev, pdp8, opword);
+            if (PDP8_IOT_DEVICE_ID(opword) == 0) {
+                cpu_iots(opword, pdp8);
+            } else {
+                pdp8_device_t *dev = pdp8->device_handlers[PDP8_IOT_DEVICE_ID(opword)];
+                if (dev) {
+                    dev->dispatch(dev, pdp8, opword);
+                }
             }
             break;
         }
@@ -432,3 +458,90 @@ static void group_2_or(uint12_t op, pdp8_t *pdp8) {
     }
 }
 
+static void cpu_iots(uint12_t op, pdp8_t *pdp8) {
+    if (op != PDP8_ION && op != PDP8_IOF && (pdp8->flags.flags & PDP8_IOT0_FULL_INTR_SET) == 0) {
+        pdp8->run = 0;
+        pdp8->halt_reason = PDP8_HALT_CAF_HANG;
+        return;
+    }
+
+    switch (op) {
+        case PDP8_SKON:
+            if (pdp8_interrupts_enabled(pdp8)) {
+                pdp8->pc = INC12(pdp8->pc);
+                pdp8->intr_enable_mask &= ~PDP8_INTR_ION;
+            }
+            break;
+
+        case PDP8_ION:
+            if (!pdp8_interrupts_enabled(pdp8)) {
+                /* execution will continue to the end of this instruction, and the end
+                 * of the next, and THEN interrupts will be enabled.
+                 */
+                pdp8->intr_enable_mask |= PDP8_INTR_ION | PDP8_INTR_ION_PENDING;
+            }
+            break;
+        
+        case PDP8_IOF:
+            pdp8->intr_enable_mask &= ~PDP8_INTR_ION;
+            break;
+
+        case PDP8_SRQ:
+            if (pdp8->intr_mask) {
+                pdp8->pc = INC12(pdp8->pc);                
+            }
+            break;
+
+        case PDP8_GTF:
+            pdp8->ac = 
+                (pdp8->link ? BIT0 : 0)  |
+                (pdp8->gt ? BIT1 : 0) |
+                (pdp8->intr_mask ? BIT2 : 0) |
+                ((pdp8->intr_enable_mask & PDP8_INTR_ION) ? BIT4 : 0) |
+                (pdp8->sf & 00177);
+            break;
+
+        case PDP8_RTF:
+            pdp8->link = (pdp8->ac & BIT0) ? 1 : 0;
+            pdp8->gt = (pdp8->ac & BIT1) ? 1 : 0;
+            pdp8->ibr = (pdp8->ac << 9) & 070000;
+            pdp8->dfr = (pdp8->ac << 12) & 070000;
+            pdp8->intr_enable_mask |= PDP8_INTR_ION_PENDING | PDP8_INTR_ION;
+            break;
+
+        case PDP8_SGT:
+            /* NB this is a NOP on machines w/o the KE8-E installed. However, the GT
+             * flag can only ever be set by that option, so no need to check.
+             */
+            if (pdp8->gt) {
+                pdp8->pc = INC12(pdp8->pc);                
+            }
+            break;
+
+        case PDP8_CAF: {
+            for (pdp8_device_t *dev = pdp8->devices; dev; dev = dev->next) {
+                dev->reset(dev);
+            } 
+            pdp8->link = 0;
+            pdp8->ac = 0;
+            break;
+        }                        
+    }
+}
+
+#if 0
+
+    int next_intr_bit;
+    uint32_t intr_mask;
+    unsigned intr_enable : 1;       /* interrupts are enabled */
+    int intr_enable_pend;           /* countdown to re-enable interrupts */
+    uint12_t sf;                    /* save field - saves dfr and ifr on interrupt */
+
+#define PDP8_SKON 06000
+#define PDP8_ION  06001
+#define PDP8_IOF  06002
+#define PDP8_SRQ  06003
+#define PDP8_GTF  06004
+#define PDP8_RTF  06004
+#define PDP8_CAF  06007
+#endif

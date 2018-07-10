@@ -38,7 +38,7 @@ typedef enum {
 /* behavior quirks/new features per CPU model 
  */
 #define PDP8_IAC_ROTS_SUPPORTED   00000001 /* group 1 rotation + IAC is supported */
-#define PDP8_IOT0_FULL_INTR_SET   00000002 /* On early models, only ION and IOFF are supported in IOT 0 */
+#define PDP8_IOT0_FULL_INTR_SET   00000002 /* On early models, only ION and IOF are supported in IOT 0 */
 #define PDP8_CLA_NMI_HANGS        00000004 /* CLA+NMI hangs on non-zero AC */
 #define PDP8_CMA_ROTS_SUPPORTED   00000010 /* CMA does works with rotates */
 #define PDP8_BSW_SUPPORTED        00000020 /* BSW (byte swap) supported */
@@ -82,6 +82,7 @@ enum pdp8_halt_reason_t {
     PDP8_HALT_CMA_ROTS_UNSUPPORTED,
     PDP8_HALT_CLA_NMI_UNSUPPORTED,
     PDP8_HALT_SCL_UNSUPPORTED,
+    PDP8_HALT_CAF_HANG,
 };
 
 /* 
@@ -122,9 +123,27 @@ struct pdp8_t {
     pdp8_halt_reason_t halt_reason;
     pdp8_model_flags_t flags;
 
+    /*
+     * intrerrupt management
+     */
+    int next_intr_bit;
+    uint32_t intr_mask;
+    uint32_t intr_enable_mask;
+    int intr_enable_pend;           /* countdown to re-enable interrupts */
+    uint12_t sf;                    /* save field - saves dfr and ifr on interrupt */
+
     pdp8_device_t *device_handlers[PDP8_DEVICE_IDS];
     pdp8_device_t *devices;
 };
+
+/* flags for intr_enable_mask */
+#define PDP8_INTR_ION            00001   /* interrupts are enabled */
+#define PDP8_INTR_ION_PENDING    00002   /* ION instruction issued */
+#define PDP8_INTR_IFR_PENDING    00004   /* IF register has changed (cleared upon JMP/JMS) */
+
+static inline int pdp8_interrupts_enabled(pdp8_t *pdp8) {
+    return pdp8->intr_enable_mask == PDP8_INTR_ION;
+}
 
 /* all writes should be gated through this */
 static inline void pdp8_write_if_safe(pdp8_t *pdp8, uint16_t addr, uint12_t value) {
@@ -148,8 +167,15 @@ extern int pdp8_set_mex_fields(pdp8_t *pdp8, int fields);
 /* install a device */
 extern int pdp8_install_device(pdp8_t *pdp8, pdp8_device_t *dev);
 
+/* run the machine */
 extern void pdp8_clear(pdp8_t *pdp8);
 extern void pdp8_step(pdp8_t *pdp8);
+
+
+/* API for devices */
+extern int pdp8_alloc_intr_bit(pdp8_t *pdp, int bit);
+extern void pdp8_request_intr(pdp8_t *pdp8, int bit);
+extern void pdp8_clear_intr(pdp8_t *pdp8, int bit);
 
 
 /* utilities */
