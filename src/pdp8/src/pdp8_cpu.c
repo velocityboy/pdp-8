@@ -276,6 +276,20 @@ void pdp8_step(pdp8_t *pdp8) {
 }
 
 /*
+ * Alloc interrupt state bits 
+ */
+int pdp8_alloc_intr_bits(pdp8_t *pdp8, int bits) {
+    int maxbits = sizeof(pdp8->intr_mask) * 8;
+    int bit0 = pdp8->next_intr_bit;
+    if (bit0 + bits > maxbits) {
+        return PDP8_ERR_MEMORY;
+    }
+    pdp8->next_intr_bit += bits;
+    return bit0;
+}
+
+
+/*
  * Compute the effective address for a memory operation, taking 
  * indirection and PC relative addressing into account.
  */

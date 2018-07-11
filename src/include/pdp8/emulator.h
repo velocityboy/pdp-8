@@ -91,6 +91,7 @@ enum pdp8_halt_reason_t {
 #define PDP8_ERR_INVALID_ARG (-1)
 #define PDP8_ERR_CONFLICT (-2)              /* device conflicts w/ already installed device */
 #define PDP8_ERR_MEMORY (-3)
+#define PDP8_ERR_BUSY (-4)                  /* device is busy */
 
 /*
  * PDP8 emulator state 
@@ -173,9 +174,7 @@ extern void pdp8_step(pdp8_t *pdp8);
 
 
 /* API for devices */
-extern int pdp8_alloc_intr_bit(pdp8_t *pdp, int bit);
-extern void pdp8_request_intr(pdp8_t *pdp8, int bit);
-extern void pdp8_clear_intr(pdp8_t *pdp8, int bit);
+extern int pdp8_alloc_intr_bits(pdp8_t *pdp, int bits);
 
 
 /* utilities */

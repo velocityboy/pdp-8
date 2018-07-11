@@ -96,7 +96,29 @@ static char *basename(char *path) {
     return lastslash + 1;
 }
 
-int main() {
+static void help(char *name) {
+    char *base = basename(name);
+    printf("%s: [-f] [-h]\n", base);
+    printf("\t-f\tOnly print failing tests\n");
+    printf("\t-h\tShow this help\n");
+    exit(1);
+}
+
+int main(int argc, char *argv[]) {
+    int only_failing = 0;
+    int ch;
+
+    while ((ch = getopt(argc, argv, "fh")) != -1) {
+        switch (ch) {
+            case 'f':
+                only_failing++;
+                break;
+
+            default:
+                help(argv[0]);
+        }
+    }
+
     qsort(harness.tests, harness.test_count, sizeof(test_t), &cmp_tests_by_name);
 
     colors_t colors;
@@ -108,7 +130,9 @@ int main() {
         test_t *test = &harness.tests[id];
         test->fn(id);
         if (test->fail_count == 0) {
-            printf("[%sPASS%s] %s - %s\n", colors.green, colors.reset, test->name, test->desc);
+            if (!only_failing) {
+                printf("[%sPASS%s] %s - %s\n", colors.green, colors.reset, test->name, test->desc);
+            }
             passed++;
             continue;
         }

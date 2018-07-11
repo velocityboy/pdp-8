@@ -2,6 +2,7 @@ project(src)
 
 add_library(pdp8
   pdp8/src/dislib.c
+  pdp8/src/pdp8_console.c
   pdp8/src/pdp8_cpu.c
   pdp8/src/pdp8_eae.c
   pdp8/src/pdp8_mex_tso.c
@@ -9,6 +10,7 @@ add_library(pdp8
 
 add_executable(pdp8_tests
   pdp8/tests/testmain.c
+  pdp8/tests/test_console.c
   pdp8/tests/test_cpu.c
   pdp8/tests/test_cpu_group1.c  
   pdp8/tests/test_cpu_group2.c
