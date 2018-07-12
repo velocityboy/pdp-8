@@ -6,7 +6,8 @@ add_library(pdp8
   pdp8/src/pdp8_cpu.c
   pdp8/src/pdp8_eae.c
   pdp8/src/pdp8_mex_tso.c
-  pdp8/src/pdp8_util.c)
+  pdp8/src/pdp8_util.c 
+  pdp8/src/scheduler.c)
 
 add_executable(pdp8_tests
   pdp8/tests/testmain.c
@@ -16,7 +17,8 @@ add_executable(pdp8_tests
   pdp8/tests/test_cpu_group2.c
   pdp8/tests/test_eae.c
   pdp8/tests/test_interrupts.c
-  pdp8/tests/test_mex.c)  
+  pdp8/tests/test_mex.c
+  pdp8/tests/test_scheduler.c)  
 target_link_libraries(pdp8_tests pdp8)
 
 target_include_directories(pdp8
