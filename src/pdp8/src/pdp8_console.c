@@ -1,11 +1,9 @@
 /**
- * IOT dispatch for KL8-E: TTY/LC8-E: Decwriter interface and PC8-E: reader/punch 
+ * IOT dispatch for KL8-E: TTY/LC8-E: Decwriter interface
  */
 #include <stdlib.h>
  
 #include "pdp8/devices.h"
-
-
 
 static int tty_install(pdp8_device_t *dev, pdp8_t *pdp8);
 static void tty_reset(pdp8_device_t *dev);
@@ -20,15 +18,12 @@ struct pdp8_console_t {
     pdp8_t *pdp8;
     uint32_t kbd_intr_bit;
     uint32_t prt_intr_bit;
-    uint32_t rdr_intr_bit;
-    uint32_t pun_intr_bit;
     uint32_t all_bits;
 
     uint32_t dev_flags;
     uint32_t enable_flags;
 
     uint8_t kbd_buffer;
-    uint8_t pun_buffer;
 
     pdp8_console_callbacks_t callbacks;
 };
@@ -39,7 +34,7 @@ int pdp8_install_console(pdp8_t *pdp8, pdp8_console_callbacks_t *callbacks, pdp8
         return PDP8_ERR_MEMORY;
     }
 
-    int bit = pdp8_alloc_intr_bits(pdp8, 4);
+    int bit = pdp8_alloc_intr_bits(pdp8, 2);
     if (bit < 0) {
         free(dev);
         return bit;
@@ -54,13 +49,9 @@ int pdp8_install_console(pdp8_t *pdp8, pdp8_console_callbacks_t *callbacks, pdp8
 
     dev->kbd_intr_bit = 1 << bit++;
     dev->prt_intr_bit = 1 << bit++;
-    dev->rdr_intr_bit = 1 << bit++;
-    dev->pun_intr_bit = 1 << bit++;
     dev->all_bits = 
         dev->kbd_intr_bit |
-        dev->prt_intr_bit |
-        dev->rdr_intr_bit |
-        dev->pun_intr_bit;
+        dev->prt_intr_bit;
 
     dev->dev_flags = 0;
     dev->enable_flags = dev->all_bits;
@@ -78,7 +69,13 @@ int pdp8_install_console(pdp8_t *pdp8, pdp8_console_callbacks_t *callbacks, pdp8
 }
 
 static int tty_install(pdp8_device_t *dev, pdp8_t *pdp8) {
-    for (int id = 001; id <= 004; id++) {
+    for (int id = 003; id <= 004; id++) {
+        if (pdp8->device_handlers[id] != NULL) {
+            return PDP8_ERR_CONFLICT;
+        }
+    }
+
+    for (int id = 003; id <= 004; id++) {        
         pdp8->device_handlers[id] = dev;
     }
 
@@ -97,10 +94,6 @@ int pdp8_console_kbd_byte(pdp8_console_t *con, uint8_t ch) {
     con->dev_flags |= con->kbd_intr_bit;
     fire_interrupts(con);
 
-    return 0;
-}
-
-int pdp8_console_rdr_byte(pdp8_console_t *dev, uint8_t ch) {
     return 0;
 }
 
@@ -198,13 +191,13 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
     }
 }
 
-void fire_interrupts(pdp8_console_t *con) {
+static void fire_interrupts(pdp8_console_t *con) {
     /* set interrupt bits if device flag is set and enable is on */
     uint32_t mask = con->dev_flags & con->enable_flags;
     con->pdp8->intr_mask = (con->pdp8->intr_mask & ~con->all_bits) | mask;
 }
 
-void prt_interrupt(void *p) {
+static void prt_interrupt(void *p) {
     pdp8_console_t *con = p;
     con->dev_flags |= con->prt_intr_bit;
     fire_interrupts(con);

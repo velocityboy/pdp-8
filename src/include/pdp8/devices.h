@@ -27,8 +27,6 @@ struct pdp8_console_callbacks_t {
     void (*free)(void *ctx);
     void (*kbd_ready)(void *ctx);
     void (*print)(void *ctx, char ch);
-    void (*rdr_ready)(void *ctx);
-    void (*punch)(void *ctx, char ch);
 };
 
 typedef struct pdp8_console_t pdp8_console_t;
@@ -49,7 +47,35 @@ typedef struct pdp8_console_t pdp8_console_t;
 
 extern int pdp8_install_console(pdp8_t *pdp8, pdp8_console_callbacks_t *callbacks, pdp8_console_t **console);
 extern int pdp8_console_kbd_byte(pdp8_console_t *dev, uint8_t ch);
-extern int pdp8_console_rdr_byte(pdp8_console_t *dev, uint8_t ch);
+
+typedef struct pdp8_punch_callbacks_t pdp8_punch_callbacks_t;
+
+struct pdp8_punch_callbacks_t {
+    void *ctx;
+    void (*free)(void *ctx);
+    void (*rdr_ready)(void *ctx);
+    void (*punch)(void *ctx, uint8_t ch);
+};
+
+typedef struct pdp8_punch_t pdp8_punch_t;
+
+extern int pdp8_install_punch(pdp8_t *pdp8, pdp8_punch_callbacks_t *callbacks, pdp8_punch_t **punch);
+extern int pdp8_punch_rdr_byte(pdp8_punch_t *dev, uint8_t ch);
+
+/* 750C/PR8-E */ 
+
+#define RPE 06010 /* PR8-E */
+#define RSF 06011 /* both */
+#define RRB 06012 /* both */
+#define RFC 06014 /* both */
+#define RRB_RFC 06016 /* PR8-E */
+
+/* 75E/PP8-E */ 
+#define PCE 06020 /* PP8-E */
+#define PSF 06021 /* both */
+#define PCF 06022 /* both */
+#define PPC 06024 /* both */
+#define PLS 06026 /* PP8-E */
 
 #endif
 

@@ -21,14 +21,6 @@ static void tty_print(void *ctx, char ch) {
     ((callback_mock_t *)ctx)->printed = ch;
 }
 
-static void tty_rdr_ready(void *ctx) {
-
-}
-
-static void tty_punch(void *ctx, char ch) {
-
-}
-
 static int setup(callback_mock_t *mocks, pdp8_t **pdp8, pdp8_console_t **con) {
     *pdp8 = pdp8_create();
 
@@ -41,8 +33,6 @@ static int setup(callback_mock_t *mocks, pdp8_t **pdp8, pdp8_console_t **con) {
     callbacks.free = &tty_free;
     callbacks.kbd_ready = &tty_kbd_ready;
     callbacks.print = &tty_print;
-    callbacks.rdr_ready = &tty_rdr_ready;
-    callbacks.punch = &tty_punch;
 
     int ret = pdp8_install_console(*pdp8, &callbacks, con);
     if (ret < 0) {
@@ -78,7 +68,7 @@ DECLARE_TEST(con_KSF_KRB, "KSF and KRB instructions") {
     
     pdp8->pc = 01000;
 
-    pdp8_step(pdp8);        /* SKON */
+    pdp8_step(pdp8);        /* ION */
     pdp8_step(pdp8);        /* first JMP */
     pdp8_step(pdp8);        /* takes interrupt, executes KSF */
 
@@ -94,7 +84,7 @@ DECLARE_TEST(con_KSF_KRB, "KSF and KRB instructions") {
     ASSERT_V(pdp8->ac == (0200 | '@'), "Keyboard data received"); 
 
     pdp8_step(pdp8);        /* KSF (should not skip) */
-    ASSERT_V(pdp8->pc == 5, "KSF did not ship after flag cleared");
+    ASSERT_V(pdp8->pc == 5, "KSF did not skip after flag cleared");
 
     pdp8_free(pdp8);
 }
