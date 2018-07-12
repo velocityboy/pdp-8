@@ -329,4 +329,105 @@ DECLARE_TEST(con_TPC_TLS, "TPC/TLS instructions") {
     ASSERT_V(pdp8->pc == 01007, "TSF skipped");
     
     pdp8_free(pdp8);
+}   
+
+DECLARE_TEST(con_KIE_prt, "KIE instruction with printer") {
+    pdp8_t *pdp8 = NULL;
+    pdp8_console_t *con = NULL;
+    callback_mock_t callback_mocks;
+
+    int ret = setup(&callback_mocks, &pdp8, &con);
+    ASSERT_V(ret >= 0, "created and installed console");
+
+    if (ret < 0) {
+        return;
+    }
+
+    pdp8->core[01000] = PDP8_ION;
+    pdp8->core[01001] = PDP8_M_MAKE(PDP8_OP_JMP, PDP8_M_PAGE, 0002);
+    pdp8->core[01002] = PDP8_OPR_GRP1 | PDP8_OPR_CLA;
+    pdp8->core[01003] = KIE;
+    pdp8->core[01004] = TFL;    
+    pdp8->core[01005] = PDP8_OPR_GRP1 | PDP8_OPR_CLA | PDP8_OPR_GRP1_IAC;
+    pdp8->core[01006] = KIE;    
+    pdp8->core[01007] = PDP8_M_MAKE(PDP8_OP_JMP, PDP8_M_PAGE, 0010);
+    
+    pdp8->core[1] = TSF;
+    pdp8->core[2] = PDP8_OPR_GRP2 | PDP8_OPR_GRP2_HLT;
+    
+    pdp8->pc = 01000;
+
+    pdp8_step(pdp8);        /* ION */
+    pdp8_step(pdp8);        /* JMP */
+    pdp8_step(pdp8);        /* CLA */
+    pdp8_step(pdp8);        /* KIE */
+
+    /* interrupts are now enabled on the CPU but off on the TTY */
+
+    pdp8_step(pdp8);        /* TFL */
+    pdp8_step(pdp8);        /* CLA IAC */    
+
+    ASSERT_V(pdp8->pc == 01006, "did not interrupt with KIE disabled");
+
+    pdp8_step(pdp8);        /* KIE */
+    pdp8_step(pdp8);        /* TSF */
+    
+    ASSERT_V(pdp8->core[0] == 01007, "Interrupt return address stored");
+    ASSERT_V(pdp8->pc == 00003, "Interrupt taken");
+
+    pdp8_free(pdp8);
+}
+
+DECLARE_TEST(con_TSK, "TSK instruction") {
+    pdp8_t *pdp8 = NULL;
+    pdp8_console_t *con = NULL;
+    callback_mock_t callback_mocks;
+
+    int ret = setup(&callback_mocks, &pdp8, &con);
+    ASSERT_V(ret >= 0, "created and installed console");
+
+    if (ret < 0) {
+        return;
+    }
+
+    pdp8->core[01000] = PDP8_IOF;
+    pdp8->core[01001] = TSK;
+    pdp8->core[01002] = TFL;
+    pdp8->core[01003] = TSK;
+    pdp8->core[01004] = PDP8_OPR_GRP2 | PDP8_OPR_GRP2_HLT;
+    pdp8->core[01005] = TCF;
+    pdp8->core[01006] = TSK;
+    pdp8->core[01007] = TSK;
+    pdp8->core[01010] = PDP8_OPR_GRP2 | PDP8_OPR_GRP2_HLT;
+    pdp8->core[01011] = KCF;
+    pdp8->core[01012] = TSK;
+        
+    pdp8->pc = 01000;
+
+    pdp8_step(pdp8);        /* IOF */
+    pdp8_step(pdp8);        /* TSK */
+
+    ASSERT_V(pdp8->pc == 01002, "TSK did not skip with no flags set");
+
+    pdp8_step(pdp8);        /* TFL */
+    pdp8_step(pdp8);        /* TSK */
+
+    ASSERT_V(pdp8->pc == 01005, "TSK skipped with TTY flag set");
+
+    pdp8_step(pdp8);        /* TCF */
+    pdp8_step(pdp8);        /* TSK */
+
+    ASSERT_V(pdp8->pc == 01007, "TSK did not skip after TTY flag cleared");
+ 
+    pdp8_console_kbd_byte(con, '@');
+    pdp8_step(pdp8);        /* TSK */
+
+    ASSERT_V(pdp8->pc == 01011, "TSK skipped with keyboard flag set");
+
+    pdp8_step(pdp8);        /* KCF */
+    pdp8_step(pdp8);        /* TSK */
+    
+    ASSERT_V(pdp8->pc == 01013, "TSK did not skip after keyboard flag cleared");
+
+    pdp8_free(pdp8);
 }

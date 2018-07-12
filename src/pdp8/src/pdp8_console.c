@@ -141,10 +141,11 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             break;
 
         case KIE:
+            /* NB KIE affects the interrupt enables for the whole device, not just the kbd */
             if (con->pdp8->ac & BIT11) {
-                con->enable_flags |= con->kbd_intr_bit;
+                con->enable_flags |= (con->kbd_intr_bit | con->prt_intr_bit);
             } else {
-                con->enable_flags &= ~con->kbd_intr_bit;
+                con->enable_flags &= ~(con->kbd_intr_bit | con->prt_intr_bit);
             }
             fire_interrupts(con);
             break;
