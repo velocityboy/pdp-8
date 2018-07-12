@@ -13,6 +13,7 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword);
 static void tty_free(pdp8_device_t *dev);
 
 static void fire_interrupts(pdp8_console_t *con);
+static void prt_interrupt(void *p);
 
 struct pdp8_console_t {
     pdp8_device_t device;
@@ -120,7 +121,7 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
         case KCF:
             con->dev_flags &= ~con->kbd_intr_bit;
             fire_interrupts(con);
-            con->callbacks.kbd_ready(con->callbacks.ctx);
+            pdp8_schedule(pdp8, 20, con->callbacks.kbd_ready, con->callbacks.ctx);
             break;
 
         case KSF: 
@@ -133,7 +134,7 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             con->dev_flags &= ~con->kbd_intr_bit;
             fire_interrupts(con);
             con->pdp8->ac = 0;
-            con->callbacks.kbd_ready(con->callbacks.ctx);
+            pdp8_schedule(pdp8, 20, con->callbacks.kbd_ready, con->callbacks.ctx);
             break;
         
         case KRS:
@@ -154,7 +155,7 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             con->dev_flags &= ~con->kbd_intr_bit;
             fire_interrupts(con);
             con->pdp8->ac = con->kbd_buffer;
-            con->callbacks.kbd_ready(con->callbacks.ctx);
+            pdp8_schedule(pdp8, 20, con->callbacks.kbd_ready, con->callbacks.ctx);
             break;
 
         case TFL:
@@ -175,8 +176,7 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
 
         case TPC:
             con->callbacks.print(con->callbacks.ctx, con->pdp8->ac & 0177);
-            con->dev_flags |= con->prt_intr_bit;
-            fire_interrupts(con);
+            pdp8_schedule(pdp8, 20, prt_interrupt, con);
             break;
 
         case TSK:
@@ -190,9 +190,10 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
              * the done flag again. we should introduce some real-world
              * delay here.
              */
-            con->callbacks.print(con->callbacks.ctx, con->pdp8->ac & 0177);
-            con->dev_flags |= con->prt_intr_bit;
+            con->dev_flags &= ~con->prt_intr_bit;
             fire_interrupts(con);
+            con->callbacks.print(con->callbacks.ctx, con->pdp8->ac & 0177);
+            pdp8_schedule(pdp8, 20, prt_interrupt, con);
             break;
     }
 }
@@ -201,4 +202,10 @@ void fire_interrupts(pdp8_console_t *con) {
     /* set interrupt bits if device flag is set and enable is on */
     uint32_t mask = con->dev_flags & con->enable_flags;
     con->pdp8->intr_mask = (con->pdp8->intr_mask & ~con->all_bits) | mask;
+}
+
+void prt_interrupt(void *p) {
+    pdp8_console_t *con = p;
+    con->dev_flags |= con->prt_intr_bit;
+    fire_interrupts(con);
 }

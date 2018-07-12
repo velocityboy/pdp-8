@@ -84,6 +84,10 @@ DECLARE_TEST(con_KSF_KRB, "KSF and KRB instructions") {
 
     ASSERT_V(callback_mocks.kbd_ready == 0, "kbd_ready not yet called");
     pdp8_step(pdp8);        /* KRB (HLT should be skipped) */
+    
+    /* keyboard ready is scheduled so host can't sent keystrokes too fast */
+    ASSERT_V(callback_mocks.kbd_ready == 0, "kbd_ready not yet called");
+    pdp8_drain_scheduler(pdp8);
     ASSERT_V(callback_mocks.kbd_ready == 1, "kbd_ready called");
         
     ASSERT_V(pdp8->pc == 4, "Interrupt routine executed");
@@ -302,9 +306,11 @@ DECLARE_TEST(con_TPC_TLS, "TPC/TLS instructions") {
     
     pdp8->core[01000] = TPC;
     pdp8->core[01001] = TSF;
-    pdp8->core[01003] = TCF;
-    pdp8->core[01004] = TLS;
-    pdp8->core[01005] = TSF;
+    pdp8->core[01002] = TSF;
+    pdp8->core[01004] = TCF;
+    pdp8->core[01005] = TLS;
+    pdp8->core[01006] = TSF;
+    pdp8->core[01007] = TSF;
     
     pdp8->pc = 01000;
     pdp8->ac = '@';
@@ -315,8 +321,13 @@ DECLARE_TEST(con_TPC_TLS, "TPC/TLS instructions") {
 
     ASSERT_V(callback_mocks.printed == '@', "Character printed");
 
+    pdp8_step(pdp8);
+    ASSERT_V(pdp8->pc == 01002, "TSF not skipped before drain");
+    
+    pdp8_drain_scheduler(pdp8);
+
     pdp8_step(pdp8);        /* TSF */
-    ASSERT_V(pdp8->pc == 01003, "TSF skipped");
+    ASSERT_V(pdp8->pc == 01004, "TSF skipped");
 
     callback_mocks.printed = 0;
     
@@ -326,7 +337,49 @@ DECLARE_TEST(con_TPC_TLS, "TPC/TLS instructions") {
     ASSERT_V(callback_mocks.printed == '@', "Character printed");
 
     pdp8_step(pdp8);        /* TSF */
-    ASSERT_V(pdp8->pc == 01007, "TSF skipped");
+    ASSERT_V(pdp8->pc == 01007, "TSF not skipped before drain");
+
+    pdp8_drain_scheduler(pdp8);
+
+    pdp8_step(pdp8);        /* TSF */
+    ASSERT_V(pdp8->pc == 01011, "TSF skipped");
+    
+    pdp8_free(pdp8);
+}   
+
+DECLARE_TEST(con_TLS_wait, "TLS instruction eventually sets flag") {
+    pdp8_t *pdp8 = NULL;
+    pdp8_console_t *con = NULL;
+    callback_mock_t callback_mocks;
+
+    int ret = setup(&callback_mocks, &pdp8, &con);
+    ASSERT_V(ret >= 0, "created and installed console");
+
+    if (ret < 0) {
+        return;
+    }
+    
+    pdp8->core[01000] = TLS;
+    pdp8->core[01001] = TSF;
+    pdp8->core[01002] = PDP8_M_MAKE(PDP8_OP_JMP, PDP8_M_PAGE, 001);
+    pdp8->core[01003] = PDP8_OPR_GRP2 | PDP8_OPR_GRP2_HLT;
+    
+    pdp8->pc = 01000;
+    pdp8->ac = '@';
+
+    callback_mocks.printed = 0;
+
+    int i = 0;
+    for (; i < 1000; i++) {
+        pdp8_step(pdp8);
+        if (!pdp8->run) {
+            break;
+        }        
+    }
+
+    ASSERT_V(i > 10, "done flag was not set immediately");
+    ASSERT_V(callback_mocks.printed == '@', "Character printed");
+    ASSERT_V(pdp8->run == 0, "CPU halted");
     
     pdp8_free(pdp8);
 }   

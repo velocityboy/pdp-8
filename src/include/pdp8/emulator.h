@@ -135,6 +135,13 @@ struct pdp8_t {
 
     pdp8_device_t *device_handlers[PDP8_DEVICE_IDS];
     pdp8_device_t *devices;
+
+    /*
+     * For devices to be able to schedule events after a certain number
+     * of instructions
+     */
+    uint64_t instr_count;
+    struct scheduler_t *scheduler;
 };
 
 /* flags for intr_enable_mask */
@@ -175,6 +182,10 @@ extern void pdp8_step(pdp8_t *pdp8);
 
 /* API for devices */
 extern int pdp8_alloc_intr_bits(pdp8_t *pdp, int bits);
+extern void pdp8_schedule(pdp8_t *pdp, int n, void (*callback)(void *), void *ctx);
+
+/* for testing ONLY - fire everything in the scheduler */
+extern void pdp8_drain_scheduler(pdp8_t *pdp8);
 
 
 /* utilities */

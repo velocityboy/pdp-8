@@ -84,6 +84,10 @@ int scheduler_insert(scheduler_t *sch, uint64_t time, scheduler_event_t event, v
     return 0;
 }
 
+void scheduler_clear(scheduler_t *sch) {
+    sch->free_node = 1;
+}
+
 int scheduler_empty(scheduler_t *sch) {
     return sch->free_node == 1;
 }

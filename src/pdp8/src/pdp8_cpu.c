@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -5,6 +6,7 @@
 #include "pdp8/emulator.h"
 
 #include "pdp8_eae.h"
+#include "scheduler.h"
 
 static uint16_t effective_address(uint12_t op, pdp8_t *pdp8);
 static void group_1(uint12_t op, pdp8_t *pdp8);
@@ -85,6 +87,7 @@ pdp8_t *pdp8_create() {
 
     pdp8->core_size = PDP8_STD_CORE_WORDS;
     pdp8->run = 1;
+    pdp8->scheduler = scheduler_create();
 
     pdp8_set_model(pdp8, PDP8_E);
 
@@ -101,6 +104,7 @@ void pdp8_free(pdp8_t *pdp8) {
             pdp8->devices->free(pdp8->devices);
             pdp8->devices = next;
         }
+        scheduler_free(pdp8->scheduler);
         free(pdp8);
     }
 }
@@ -172,6 +176,8 @@ extern void pdp8_clear(pdp8_t *pdp8) {
     for (pdp8_device_t *dev = pdp8->devices; dev; dev = dev->next) {
         dev->reset(dev);
     }
+
+    scheduler_clear(pdp8->scheduler);
 }
 
 /*
@@ -180,6 +186,18 @@ extern void pdp8_clear(pdp8_t *pdp8) {
 void pdp8_step(pdp8_t *pdp8) {
     if (!pdp8->run) {
         return;
+    }
+
+    /* handle deferred events */
+    pdp8->instr_count++;
+
+    /* getting the time returns MAXINT if empty */
+    scheduler_t *sch = pdp8->scheduler;
+    while (scheduler_next_event_time(sch) <= pdp8->instr_count) {
+        scheduler_callback_t callback;
+        int ret = scheduler_extract_min(sch, &callback);
+        assert(ret >= 0);
+        callback.event(callback.ctx);
     }
 
     /* first, handle pending interrupts */
@@ -288,6 +306,27 @@ int pdp8_alloc_intr_bits(pdp8_t *pdp8, int bits) {
     return bit0;
 }
 
+/* 
+ * Schedule a callback in 'n' instructions
+ */
+void pdp8_schedule(pdp8_t *pdp8, int n, void (*callback)(void *), void *ctx) {
+    scheduler_insert(pdp8->scheduler, pdp8->instr_count + n, callback, ctx);
+}
+
+/* 
+ * For testing, it's useful to be able to skip directly to queued
+ * events.
+ */
+void pdp8_drain_scheduler(pdp8_t *pdp8) {
+    while (!scheduler_empty(pdp8->scheduler)) {
+        scheduler_callback_t callback;
+        if (scheduler_extract_min(pdp8->scheduler, &callback) < 0) {
+            break;
+        }
+
+        callback.event(callback.ctx);
+    }
+}
 
 /*
  * Compute the effective address for a memory operation, taking 
