@@ -35,6 +35,7 @@ add_executable(bootprom bootprom/src/bootprom.c)
 target_link_libraries(bootprom pdp8)
 
 add_executable(emu 
+  emu/src/bootprom.c
   emu/src/emu.c 
   emu/src/commandset.c
   emu/src/options.c

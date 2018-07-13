@@ -11,6 +11,7 @@
 #include "commandset.h"
 #include "options.h"
 #include "tty_driver.h"
+#include "bootprom.h"
 
 static inline int min(int x, int y) { return x < y ? x : y; }
 static inline int isodigit(char ch) { return ch >= '0' && ch <= '7'; }
@@ -27,22 +28,24 @@ static void exit_(char *);
 static void help(char *);
 static void enable(char*);
 static void go(char *);
+static void bootprom(char *);
 
 static int octal(char **);
 static char *trim(char *str);
     
 
 static command_t commands[] = {
+    { "bootprom",   "bp", "xxx load bootstrap from prom address xxx", &bootprom },
     { "deposit",    "d",  "xxxx dd [dd ...]", &deposit },
-    { "enable",     "en", "option-name (lists options with no args)", &enable},
-    { "examine",    "ex", "xxxxx[-yyyyy] examine core", &examine},
-    { "exit",       "q",  "exit the emulator", &exit_},
-    { "go",         "g",  "start execution", &go},
-    { "help",       "h",  "display help for all commands", &help},
-    { "registers",  "r",  "display the CPU state", &registers},
-    { "set",        "s",  "AC|PC|LINK|RUN|SR %o set register", &set},
-    { "step",       "n",  "single step the CPU", &step},
-    { "unassemble", "u",  "xxxxx[-yyyyy] unassemble memory", &unassemble},
+    { "enable",     "en", "option-name (lists options with no args)", &enable },
+    { "examine",    "ex", "xxxxx[-yyyyy] examine core", &examine },
+    { "exit",       "q",  "exit the emulator", &exit_ },
+    { "go",         "g",  "start execution", &go },
+    { "help",       "h",  "display help for all commands", &help },
+    { "registers",  "r",  "display the CPU state", &registers },
+    { "set",        "s",  "AC|PC|LINK|RUN|SR %o set register", &set },
+    { "step",       "n",  "single step the CPU", &step },
+    { "unassemble", "u",  "xxxxx[-yyyyy] unassemble memory", &unassemble },
     { NULL, NULL, NULL, NULL},
 };
 
@@ -312,6 +315,18 @@ static void go(char *args) {
     emu_end_tty(tty);
 }
 
+static void bootprom(char *tail) {
+    int addr = 0;
+    int consumed = 0;
+
+    int n = sscanf(tail, "%o %n", &addr, &consumed);
+    if (n != 1 || consumed != strlen(tail)) {
+        printf("bootprom: invalid parameters\n");
+        return;
+    }
+
+    emu_run_bootprom(pdp8, addr);
+}
 static int octal(char **str) {
     int out = 0;
 
