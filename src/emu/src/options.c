@@ -1,5 +1,8 @@
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "pdp8/devices.h"
 
 #include "options.h"
 
@@ -11,9 +14,13 @@ struct option_t {
 };
 
 static void enable_eae(pdp8_t *pdp8);
+static void enable_mex(pdp8_t *pdp8);
+static void enable_8e(pdp8_t *pdp8);
 
 static option_t options[] = {
     { "eae", &enable_eae },
+    { "mex", &enable_mex },
+    { "8e", &enable_8e },
     { NULL, NULL},
 };
 
@@ -46,4 +53,24 @@ int enable_option(char *name, pdp8_t *pdp8) {
 
 void enable_eae(pdp8_t *pdp8) {
     pdp8->option_eae = 1;
+}
+
+void enable_mex(pdp8_t *pdp8) {
+    int ret = pdp8_install_mex_tso(pdp8);
+    if (ret < 0) {
+        printf("failed to install memory controller (%d)\n", ret);
+        return;
+    }
+
+    ret = pdp8_set_mex_fields(pdp8, 8);
+    if (ret < 0) {
+        printf("failed to install memory (%d)\n", ret);
+    }
+}
+
+void enable_8e(pdp8_t *pdp8) {
+    int ret = pdp8_set_model(pdp8, PDP8_E);
+    if (ret < 0) {
+        printf("failed to upgrade model to PDP8/E (%d)\n", ret);
+    }
 }

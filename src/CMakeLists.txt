@@ -37,7 +37,8 @@ target_link_libraries(bootprom pdp8)
 add_executable(emu 
   emu/src/emu.c 
   emu/src/commandset.c
-  emu/src/options.c)
+  emu/src/options.c
+  emu/src/tty_driver.c)
 target_link_libraries(emu pdp8)
 
 add_executable(ptrim ptrim/src/ptrim.c)

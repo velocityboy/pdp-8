@@ -83,6 +83,7 @@ enum pdp8_halt_reason_t {
     PDP8_HALT_CLA_NMI_UNSUPPORTED,
     PDP8_HALT_SCL_UNSUPPORTED,
     PDP8_HALT_CAF_HANG,
+    PDP8_HALT_FRONT_PANEL,
 };
 
 /* 

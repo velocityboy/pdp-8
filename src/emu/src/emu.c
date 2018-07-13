@@ -7,8 +7,10 @@
 #include <string.h>
 
 #include "pdp8/emulator.h"
+#include "pdp8/devices.h"
 #include "commandset.h"
 #include "options.h"
+#include "tty_driver.h"
 
 static inline int min(int x, int y) { return x < y ? x : y; }
 static inline int isodigit(char ch) { return ch >= '0' && ch <= '7'; }
@@ -24,6 +26,7 @@ static void examine(char *);
 static void exit_(char *);
 static void help(char *);
 static void enable(char*);
+static void go(char *);
 
 static int octal(char **);
 static char *trim(char *str);
@@ -34,6 +37,7 @@ static command_t commands[] = {
     { "enable",     "en", "option-name (lists options with no args)", &enable},
     { "examine",    "ex", "xxxxx[-yyyyy] examine core", &examine},
     { "exit",       "q",  "exit the emulator", &exit_},
+    { "go",         "g",  "start execution", &go},
     { "help",       "h",  "display help for all commands", &help},
     { "registers",  "r",  "display the CPU state", &registers},
     { "set",        "s",  "AC|PC|LINK|RUN|SR %o set register", &set},
@@ -43,9 +47,19 @@ static command_t commands[] = {
 };
 
 static pdp8_t *pdp8;
+static tty_driver_t *tty;
+
+static const int DEVICE_SERVICE_INTERVAL = 256;
+static void device_service(void *);
 
 int main(int argc, char *argv[]) {
     pdp8 = pdp8_create();
+    tty = emu_install_tty(pdp8);
+    if (tty == NULL) {
+        fprintf(stderr, "could not create tty driver\n");
+        return 1;
+    }
+
     commandloop(stdin);
 }
 
@@ -287,6 +301,15 @@ static void enable(char *name) {
     if (enable_option(name, pdp8) == -1) {
         printf("failed to enable option \"%s\"\n", name);
     }
+}
+
+static void go(char *args) {
+    emu_start_tty(tty);
+    pdp8->run = 1;
+    while (pdp8->run) {
+        pdp8_step(pdp8);
+    }
+    emu_end_tty(tty);
 }
 
 static int octal(char **str) {
