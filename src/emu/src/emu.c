@@ -9,7 +9,9 @@
 #include "pdp8/emulator.h"
 #include "pdp8/devices.h"
 #include "commandset.h"
+#include "emu.h"
 #include "options.h"
+#include "pt_driver.h"
 #include "tty_driver.h"
 #include "bootprom.h"
 
@@ -29,14 +31,15 @@ static void help(char *);
 static void enable(char*);
 static void go(char *);
 static void bootprom(char *);
+static void devlist(char *);
 
 static int octal(char **);
 static char *trim(char *str);
     
-
 static command_t commands[] = {
     { "bootprom",   "bp", "xxx load bootstrap from prom address xxx", &bootprom },
     { "deposit",    "d",  "xxxx dd [dd ...]", &deposit },
+    { "devlist",    "dl", "show installed devices", &devlist },
     { "enable",     "en", "option-name (lists options with no args)", &enable },
     { "examine",    "ex", "xxxxx[-yyyyy] examine core", &examine },
     { "exit",       "q",  "exit the emulator", &exit_ },
@@ -55,6 +58,9 @@ static tty_driver_t *tty;
 static const int DEVICE_SERVICE_INTERVAL = 256;
 static void device_service(void *);
 
+static const int MAX_DEVICES = 32;
+static emu_device_t devices[MAX_DEVICES];
+
 int main(int argc, char *argv[]) {
     pdp8 = pdp8_create();
     tty = emu_install_tty(pdp8);
@@ -63,7 +69,35 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    if (emu_install_pt(pdp8) < 0) {
+        fprintf(stderr, "could not create pt driver\n");
+        return 1;
+    }
+
     commandloop(stdin);
+}
+
+int emu_register_device(emu_device_t *device) {
+    if (device->name == NULL) {
+        return PDP8_ERR_INVALID_ARG;
+    }
+
+    for (int i = 0; i < MAX_DEVICES; i++) {
+        if (devices[i].name == NULL) {
+            devices[i] = *device;
+            return 0;
+        }
+    }
+
+    return PDP8_ERR_MEMORY;
+}
+
+void emu_unregister_device(int dev_id) {
+    if (dev_id < 0 || dev_id >= MAX_DEVICES || devices[dev_id].name == NULL) {
+        return;
+    }
+
+    memset(&devices[dev_id], 0, sizeof(devices[dev_id]));
 }
 
 static void commandloop(FILE *fp) {
@@ -327,6 +361,31 @@ static void bootprom(char *tail) {
 
     emu_run_bootprom(pdp8, addr);
 }
+
+static void devlist(char *tail) {
+    for (int i = 0; i < MAX_DEVICES; i++) {
+        if (devices[i].name == NULL) {
+            continue;
+        }
+
+        emu_device_t *dev = &devices[i];
+
+        printf("%s", dev->name);
+        if (dev->slots > 1) {
+            printf("0-%d", dev->slots - 1);
+        }
+
+        if (dev->description) {
+            printf(": %s", dev->description);
+        }
+
+        printf("\n");
+        if (dev->load_media) {
+            printf("\tcan load and unload media.\n");
+        }
+    }
+}
+    
 static int octal(char **str) {
     int out = 0;
 
@@ -356,3 +415,4 @@ static char *trim(char *str) {
     *q = '\0';
     return p;
 }
+

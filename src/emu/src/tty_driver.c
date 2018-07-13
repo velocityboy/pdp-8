@@ -6,8 +6,6 @@
 
 #include "pdp8/devices.h"
 
-// extern int pdp8_console_kbd_byte(pdp8_console_t *dev, uint8_t ch);
-
 static void tty_free(void *);
 static void tty_kbd_ready(void *ctx);
 static void tty_print(void *ctx, char ch);
@@ -82,7 +80,9 @@ static void tty_free(void *ctx) {
 }
 
 static void tty_kbd_ready(void *ctx) {
-    try_send(ctx);
+    tty_driver_t *tty = ctx;
+    tty->hw_busy = 0;
+    try_send(tty);
 }
 
 static void tty_print(void *ctx, char ch) {

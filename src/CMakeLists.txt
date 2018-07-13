@@ -39,6 +39,7 @@ add_executable(emu
   emu/src/emu.c 
   emu/src/commandset.c
   emu/src/options.c
+  emu/src/pt_driver.c
   emu/src/tty_driver.c)
 target_link_libraries(emu pdp8)
 
