@@ -32,9 +32,11 @@ static void enable(char*);
 static void go(char *);
 static void bootprom(char *);
 static void devlist(char *);
+static void media(char *);
 
 static int octal(char **);
 static char *trim(char *str);
+static int parse(char *str, char **tokens, int max_tok);
     
 static command_t commands[] = {
     { "bootprom",   "bp", "xxx load bootstrap from prom address xxx", &bootprom },
@@ -45,6 +47,7 @@ static command_t commands[] = {
     { "exit",       "q",  "exit the emulator", &exit_ },
     { "go",         "g",  "start execution", &go },
     { "help",       "h",  "display help for all commands", &help },
+    { "media",      "m",  "load|unload device [fname]", &media },
     { "registers",  "r",  "display the CPU state", &registers },
     { "set",        "s",  "AC|PC|LINK|RUN|SR %o set register", &set },
     { "step",       "n",  "single step the CPU", &step },
@@ -385,6 +388,78 @@ static void devlist(char *tail) {
         }
     }
 }
+
+static int dev_by_name(char *p, int *slot) {
+    char *q = p;
+    while (*q && !isdigit(*q)) {
+        q++;
+    }
+
+    *slot = 0;
+    int len = strlen(p);
+
+    if (q) {
+        sscanf(q, "%d", slot);
+        len = q - p;
+    }
+
+    int dev = 0;
+    for (; dev < MAX_DEVICES; dev++) {
+        if (devices[dev].name && strncasecmp(devices[dev].name, p, len) == 0) {
+            break;
+        }
+    }
+
+    if (dev == MAX_DEVICES) {
+        return -1;
+    }
+
+    if (*slot >= devices[dev].slots) {
+        return -1;
+    }
+
+    return dev;
+}
+
+static void media(char *tail) {
+    char *tokens[4];
+    int n = parse(tail, tokens, 4);
+    if (n < 2) {
+        printf("media: invalid arguments\n");
+        return;
+    }
+
+    int load = 0;
+    if (strcmp(tokens[0], "load") == 0) {
+        load = 1;
+    } else if (strcmp(tokens[0], "unload") != 0) {
+        printf("media: must give 'load' or 'unload'\n");
+        return;
+    }
+
+    if (load && n < 3) {
+        printf("media: must give mount filename with 'load'\n");
+        return;
+    }
+
+    int slot;
+    int dev = dev_by_name(tokens[1], &slot);
+    if (dev < 0) {
+        printf("media: device %s does not exist.\n", tokens[1]);
+        return;
+    }
+
+    if (devices[dev].load_media == NULL || devices[dev].unload_media == NULL) {
+        printf("media: device %s cannot load or unload media\n", tokens[1]);
+        return;
+    }
+
+    if (load) {
+        devices[dev].load_media(devices[dev].ctx, slot, tokens[2]);        
+    } else {
+        devices[dev].unload_media(devices[dev].ctx, slot);
+    }
+}
     
 static int octal(char **str) {
     int out = 0;
@@ -414,5 +489,44 @@ static char *trim(char *str) {
 
     *q = '\0';
     return p;
+}
+
+static int parse(char *str, char **tokens, int max_tok) {
+    int n = 0;
+    while (*str && n < max_tok - 1) {
+        while (isspace(*str))
+            str++;
+
+        if (!*str) {
+            break;
+        }
+
+        if (*str == '"') {
+            str++;
+            if (!*str) {
+                break;
+            }
+            tokens[n++] = str;
+
+            while (*str && *str != '"') 
+                str++;
+
+            if (!*str) {
+                break;
+            }
+
+            *str++ = '\0';
+            continue;
+        }
+
+        tokens[n++] = str;
+        while (*str && !isspace(*str))
+            str++;
+        if (*str) 
+            *str++ = '\0';
+    }
+
+    tokens[n] = NULL;
+    return n;
 }
 
