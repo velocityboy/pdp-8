@@ -112,7 +112,8 @@ L7774:
 
   for (int addr = 0; addr <= 07777; addr++) {
     char line[200];
-    pdp8_disassemble((uint16_t)addr, core[addr], line, sizeof(line));
+    /* we are assuming the boot code only uses EAE mode A */
+    pdp8_disassemble((uint16_t)addr, &core[addr], 0, line, sizeof(line));
     printf("%s\n", line);
   }
 

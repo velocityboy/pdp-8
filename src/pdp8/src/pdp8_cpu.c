@@ -6,6 +6,7 @@
 #include "pdp8/emulator.h"
 
 #include "pdp8_eae.h"
+#include "pdp8_trace.h"
 #include "scheduler.h"
 
 static uint16_t effective_address(uint12_t op, pdp8_t *pdp8);
@@ -180,6 +181,65 @@ extern void pdp8_clear(pdp8_t *pdp8) {
     scheduler_clear(pdp8->scheduler);
 }
 
+int pdp8_start_tracing(pdp8_t *pdp8, char *tracefile) {
+    if (pdp8->trace) {
+        return PDP8_ERR_BUSY;
+    }
+
+    pdp8->trace = pdp8_trace_create(pdp8);
+    pdp8->tracefile = strdup(tracefile);
+
+    return 0;
+}
+
+int pdp8_stop_tracing(pdp8_t *pdp8) {
+    if (!pdp8->trace) {
+        return PDP8_ERR_INVALID_ARG;
+    }
+
+    if (pdp8_trace_save(pdp8->trace, pdp8->tracefile) < 0) {
+        return PDP8_ERR_FILEIO;
+    }
+
+    pdp8_trace_free(pdp8->trace);
+    free(pdp8->tracefile);
+
+    pdp8->trace = NULL;
+    pdp8->tracefile = NULL;
+
+    return 0;
+}
+
+int pdp8_make_trace_listing(pdp8_t *pdp8, char *tracefile, char *listfile) {
+    if (pdp8->trace) {
+        return PDP8_ERR_BUSY;
+    }
+
+    pdp8_trace_t *trace = pdp8_trace_load(tracefile);
+    if (trace == NULL) {
+        return PDP8_ERR_FILEIO;
+    }
+
+    if (pdp8_trace_save_listing(trace, listfile) < 0) {
+        pdp8_trace_free(trace);
+        return PDP8_ERR_FILEIO;        
+    }
+
+    pdp8_trace_free(trace);
+    return 0;
+}
+
+/* all writes should be gated through this */
+void pdp8_write_if_safe(pdp8_t *pdp8, uint16_t addr, uint12_t value) {
+    if (pdp8->trace) {
+        pdp8_trace_memory_write(pdp8->trace, addr, value);
+    }
+    
+    if (addr < pdp8->core_size) {
+        pdp8->core[addr] = value;
+    }
+}
+
 /*
  * Execute one instruction.
  */
@@ -208,12 +268,19 @@ void pdp8_step(pdp8_t *pdp8) {
             ((pdp8->ifr >>  9) & 070);
         pdp8->dfr = 0;
         pdp8->ifr = 0;
-        pdp8->core[0] = pdp8->pc;
+        pdp8_write_if_safe(pdp8, 0, pdp8->pc);
         pdp8->pc = 1;
+        if (pdp8->trace) {
+            pdp8_trace_interrupt(pdp8->trace);
+        }
     }
 
     /* then, update any pending interrupt state */
     pdp8->intr_enable_mask &= ~PDP8_INTR_ION_PENDING;
+
+    if (pdp8->trace) {
+        pdp8_trace_begin_instruction(pdp8->trace);
+    }
 
     uint12_t opword = pdp8->core[pdp8->ifr | pdp8->pc];
     pdp8->pc = INC12(pdp8->pc);
@@ -290,6 +357,10 @@ void pdp8_step(pdp8_t *pdp8) {
                 pdp8_group3(opword, pdp8);
             }
             break;
+    }
+
+    if (pdp8->trace) {
+        pdp8_trace_end_instruction(pdp8->trace);
     }
 }
 
@@ -582,19 +653,4 @@ static void cpu_iots(uint12_t op, pdp8_t *pdp8) {
     }
 }
 
-#if 0
 
-    int next_intr_bit;
-    uint32_t intr_mask;
-    unsigned intr_enable : 1;       /* interrupts are enabled */
-    int intr_enable_pend;           /* countdown to re-enable interrupts */
-    uint12_t sf;                    /* save field - saves dfr and ifr on interrupt */
-
-#define PDP8_SKON 06000
-#define PDP8_ION  06001
-#define PDP8_IOF  06002
-#define PDP8_SRQ  06003
-#define PDP8_GTF  06004
-#define PDP8_RTF  06004
-#define PDP8_CAF  06007
-#endif

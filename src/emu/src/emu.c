@@ -33,6 +33,7 @@ static void go(char *);
 static void bootprom(char *);
 static void devlist(char *);
 static void media(char *);
+static void trace(char *);
 
 static int octal(char **);
 static char *trim(char *str);
@@ -51,6 +52,7 @@ static command_t commands[] = {
     { "registers",  "r",  "display the CPU state", &registers },
     { "set",        "s",  "AC|PC|LINK|RUN|SR %o set register", &set },
     { "step",       "n",  "single step the CPU", &step },
+    { "trace",      "t",  "start filename|stop|list trace-file list-file", &trace },
     { "unassemble", "u",  "xxxxx[-yyyyy] unassemble memory", &unassemble },
     { NULL, NULL, NULL, NULL},
 };
@@ -227,9 +229,13 @@ static void unassemble(char *tail) {
         end = pdp8->core_size - 1;
     }
 
-    for (; start <= end; start++) {
+    while (1) {
         char line[200];
-        pdp8_disassemble(start, pdp8->core[start], line, sizeof(line));
+        int n = pdp8_disassemble(start, &pdp8->core[start], pdp8->eae_mode_b, line, sizeof(line));
+        if (n <= 0) {
+            break;            
+        }        
+        start = (start + n) & 07777;
         printf("%s\n", line);
     }
 }
@@ -241,7 +247,7 @@ static void registers(char *tail) {
     }
     printf(" %s\n", pdp8->run ? "RUN" : "STOP");
     char line[200];
-    pdp8_disassemble(pdp8->pc, pdp8->core[pdp8->pc], line, sizeof(line));
+    pdp8_disassemble(pdp8->pc, &pdp8->core[pdp8->pc], pdp8->eae_mode_b, line, sizeof(line));
     printf("%s\n", line);
 }
 
@@ -460,6 +466,55 @@ static void media(char *tail) {
         devices[dev].unload_media(devices[dev].ctx, slot);
     }
 }
+
+static void trace(char *tail) {
+    char *tokens[4];
+    int n = parse(tail, tokens, 4);
+    if (n < 1) {
+        printf("trace: invalid arguments\n");
+        return;
+    }
+
+    if (strcmp(tokens[0], "start") == 0) {
+        if (n < 2) {
+            printf("trace: start requires filename\n");
+            return;
+        }
+
+        if (pdp8_start_tracing(pdp8, tokens[1]) < 0) {
+            printf("trace: already tracing.\n");
+            return;
+        }
+    } else if (strcmp(tokens[0], "stop") == 0) {
+        int ret = pdp8_stop_tracing(pdp8);
+        switch (ret) {
+            case PDP8_ERR_INVALID_ARG:
+                printf("trace: not tracing.\n");
+                break;
+
+            case PDP8_ERR_FILEIO:
+                printf("trace: could not write trace file.\n");
+                break;
+
+            case 0:
+                break;
+
+            default:
+                printf("trace: generic failure.\n");
+        }
+    } else if (strcmp(tokens[0], "list") == 0) {
+        if (n < 3) {
+            printf("trace: list requires trace-file list-file.\n");
+            return;
+        }
+        if (pdp8_make_trace_listing(pdp8, tokens[1], tokens[2]) < 0) {
+            printf("trace: failed to create listing.\n");
+        }
+    } else {
+        printf("trace: invalid subcommand %s\n", tokens[0]);
+    }
+}
+
     
 static int octal(char **str) {
     int out = 0;

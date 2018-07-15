@@ -82,7 +82,8 @@ int main(int argc, char **argv) {
 
     if (word & OP_DEPOSIT) {
       char disasm[100];
-      pdp8_disassemble(addr, word & 07777, disasm, sizeof(disasm));
+      // TODO fixme
+      // pdp8_disassemble(addr, word & 07777, disasm, sizeof(disasm));
       printf(" | %s", disasm);
       addr++;
     }

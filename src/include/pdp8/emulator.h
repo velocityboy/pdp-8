@@ -93,6 +93,7 @@ enum pdp8_halt_reason_t {
 #define PDP8_ERR_CONFLICT (-2)              /* device conflicts w/ already installed device */
 #define PDP8_ERR_MEMORY (-3)
 #define PDP8_ERR_BUSY (-4)                  /* device is busy */
+#define PDP8_ERR_FILEIO (-5)
 
 /*
  * PDP8 emulator state 
@@ -143,6 +144,12 @@ struct pdp8_t {
      */
     uint64_t instr_count;
     struct scheduler_t *scheduler;
+
+    /*
+     * Trace facility 
+     */
+    struct pdp8_trace_t *trace;
+    char *tracefile;
 };
 
 /* flags for intr_enable_mask */
@@ -154,13 +161,8 @@ static inline int pdp8_interrupts_enabled(pdp8_t *pdp8) {
     return pdp8->intr_enable_mask == PDP8_INTR_ION;
 }
 
-/* all writes should be gated through this */
-static inline void pdp8_write_if_safe(pdp8_t *pdp8, uint16_t addr, uint12_t value) {
-    if (addr < pdp8->core_size) {
-        pdp8->core[addr] = value;
-    }
-}
-
+extern void pdp8_write_if_safe(pdp8_t *pdp8, uint16_t addr, uint12_t value);
+    
 extern pdp8_t *pdp8_create();
 extern void pdp8_free(pdp8_t *pdp8);
 
@@ -188,9 +190,13 @@ extern void pdp8_schedule(pdp8_t *pdp, int n, void (*callback)(void *), void *ct
 /* for testing ONLY - fire everything in the scheduler */
 extern void pdp8_drain_scheduler(pdp8_t *pdp8);
 
+/* trace facility */
+extern int pdp8_start_tracing(pdp8_t *pdp8, char *tracefile);
+extern int pdp8_stop_tracing(pdp8_t *pdp8);
+extern int pdp8_make_trace_listing(pdp8_t *pdp8, char *tracefile, char *listfile);
 
 /* utilities */
-extern int pdp8_disassemble(uint16_t addr, uint12_t op, char *decoded, int decodedLen);
+extern int pdp8_disassemble(uint16_t addr, uint12_t *op, int eae_mode_b, char *decoded, int decoded_size);
 extern pdp8_reg_t pdp8_reg_from_string(char *s);
 
 #endif

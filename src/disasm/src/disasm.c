@@ -24,7 +24,10 @@ int main(int argc, char **argv) {
   fread(byteBuffer, 1, len, fin);
   fclose(fin);
 
-  uint16_t *wordBuffer = (uint16_t*)malloc(len);
+  /* overallocate in case the last instruction is incorrectly a 
+   * truncate two-word op
+   */
+  uint16_t *wordBuffer = (uint16_t*)malloc(len + 2);
   size_t words = len / 2;
 
   for (size_t i = 0; i < words; i++) {
@@ -34,7 +37,8 @@ int main(int argc, char **argv) {
 
   for (size_t i = 0; i < words; i++) {
     char decoded[100];
-    pdp8_disassemble(i, wordBuffer[i], decoded, sizeof(decoded));
+    /* we are assuming EAE mode A */
+    pdp8_disassemble(i, &wordBuffer[i], 0, decoded, sizeof(decoded));
     printf("%s\n", decoded);
   }
 
