@@ -5,6 +5,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
+#include <sys/select.h>
 
 #include "pdp8/emulator.h"
 #include "pdp8/devices.h"
@@ -350,10 +352,41 @@ static void enable(char *name) {
 }
 
 static void go(char *args) {
+    const int BLOCK = 100;
+    const int BLOCK_USEC = 120; /* fastest instruction is 1.2 usec */
+    const int USEC_PER_SEC = 1000 * 1000;
+
     emu_start_tty(tty);
     pdp8->run = 1;
     while (pdp8->run) {
-        pdp8_step(pdp8);
+        struct timeval start;
+        gettimeofday(&start, NULL);
+
+        for (int i = 0; i < BLOCK; i++) {
+            pdp8_step(pdp8);
+        }
+        struct timeval end;
+        gettimeofday(&end, NULL);
+
+        if (end.tv_usec < start.tv_usec) {
+            end.tv_usec += USEC_PER_SEC;
+            end.tv_sec--;
+        }
+
+        end.tv_sec -= start.tv_sec;
+        end.tv_usec -= start.tv_usec;
+
+        if (end.tv_sec > 0 || end.tv_usec >= BLOCK_USEC) {
+            continue;
+        }
+
+        end.tv_usec = BLOCK_USEC - end.tv_usec;
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(0, &fds);
+
+        /* wait for block execution time or until stdin ready */
+        select(1, &fds, NULL, NULL, &end);
     }
     emu_end_tty(tty);
 }
