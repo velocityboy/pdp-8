@@ -9,7 +9,7 @@
 #include "pdp8_trace.h"
 #include "scheduler.h"
 
-static uint16_t effective_address(uint12_t op, pdp8_t *pdp8);
+static uint16_t effective_address(uint12_t op, uint12_t page, pdp8_t *pdp8);
 static void group_1(uint12_t op, pdp8_t *pdp8);
 static void group_2_and(uint12_t op, pdp8_t *pdp8);
 static void group_2_or(uint12_t op, pdp8_t *pdp8);
@@ -234,7 +234,7 @@ void pdp8_write_if_safe(pdp8_t *pdp8, uint16_t addr, uint12_t value) {
     if (pdp8->trace) {
         pdp8_trace_memory_write(pdp8->trace, addr, value);
     }
-    
+
     if (addr < pdp8->core_size) {
         pdp8->core[addr] = value;
     }
@@ -283,6 +283,7 @@ void pdp8_step(pdp8_t *pdp8) {
     }
 
     uint12_t opword = pdp8->core[pdp8->ifr | pdp8->pc];
+    uint12_t page = pdp8->pc & 07600;
     pdp8->pc = INC12(pdp8->pc);
 
     int oper = PDP8_OP(opword);
@@ -293,19 +294,19 @@ void pdp8_step(pdp8_t *pdp8) {
 
     switch (oper) {
         case PDP8_OP_AND:
-            ea = effective_address(opword, pdp8);
+            ea = effective_address(opword, page, pdp8);
             pdp8->ac &= pdp8->core[ea];
             break;
 
         case PDP8_OP_TAD: 
-            ea = effective_address(opword, pdp8);
+            ea = effective_address(opword, page, pdp8);
             sum = (pdp8->link << 12) + pdp8->ac + pdp8->core[ea];
             pdp8->ac = sum & 07777;
             pdp8->link = (sum >> 12) & 01;
             break;
 
         case PDP8_OP_ISZ:
-            ea = effective_address(opword, pdp8);
+            ea = effective_address(opword, page, pdp8);
             temp = INC12(pdp8->core[ea]);
             pdp8_write_if_safe(pdp8, ea, temp);
 
@@ -315,14 +316,14 @@ void pdp8_step(pdp8_t *pdp8) {
             break;
 
         case PDP8_OP_DCA:
-            ea = effective_address(opword, pdp8);
+            ea = effective_address(opword, page, pdp8);
             pdp8_write_if_safe(pdp8, ea, pdp8->ac);
             pdp8->ac = 0;
             break;
 
         case PDP8_OP_JMS:
             pdp8->ifr = pdp8->ibr;
-            ea = effective_address(opword, pdp8) & MASK12;
+            ea = effective_address(opword, page, pdp8) & MASK12;
             pdp8_write_if_safe(pdp8, pdp8->ifr | ea, pdp8->pc);
             pdp8->pc = INC12(ea);
             pdp8->intr_enable_mask &= ~PDP8_INTR_IFR_PENDING;
@@ -330,7 +331,7 @@ void pdp8_step(pdp8_t *pdp8) {
 
         case PDP8_OP_JMP:
             pdp8->ifr = pdp8->ibr;
-            pdp8->pc = effective_address(opword, pdp8) & MASK12;
+            pdp8->pc = effective_address(opword, page, pdp8) & MASK12;
             pdp8->intr_enable_mask &= ~PDP8_INTR_IFR_PENDING;
             break;
 
@@ -403,13 +404,12 @@ void pdp8_drain_scheduler(pdp8_t *pdp8) {
  * Compute the effective address for a memory operation, taking 
  * indirection and PC relative addressing into account.
  */
-static uint16_t effective_address(uint12_t op, pdp8_t *pdp8) {
+static uint16_t effective_address(uint12_t op, uint12_t page, pdp8_t *pdp8) {
     /* low 7 bits come from op encoding */
     uint16_t addr = PDP8_M_OFFS(op);
   
     /* bit 4, if set, means in same page as PC */
     if (PDP8_M_ZERO(op)) {
-        uint12_t page = pdp8->pc & 07600;
         addr |= page;
     }
 

@@ -26,6 +26,16 @@ DECLARE_TEST(cpu_mem, "Basic memory addressing") {
     ASSERT_V(pdp8->ac == 00700, "Same-page addressing correct");
 
     pdp8_clear(pdp8);
+    pdp8->core[01777] = PDP8_M_MAKE(PDP8_OP_AND, PDP8_M_PAGE, 00020);
+    pdp8->core[01620] = 07700;
+    pdp8->ac =          00707;
+    pdp8->pc = 01777;
+    
+    pdp8_step(pdp8);
+    
+    ASSERT_V(pdp8->ac == 00700, "Same-page addressing correct across page boundary");
+
+    pdp8_clear(pdp8);
     pdp8->core[01000] = PDP8_M_MAKE(PDP8_OP_AND, PDP8_M_INDIRECT, 00020);
     pdp8->core[00020] = 03000;
     pdp8->core[03000] = 07700;
