@@ -77,5 +77,17 @@ extern int pdp8_punch_rdr_byte(pdp8_punch_t *dev, uint8_t ch);
 #define PPC 06024 /* both */
 #define PLS 06026 /* PP8-E */
 
+typedef struct pdp8_rk8e_t pdp8_rk8e_t;
+typedef struct pdp8_rk8e_callbacks_t pdp8_rk8e_callbacks_t;
+
+struct pdp8_rk8e_callbacks_t {
+    void *ctx;
+    int (*has_media)(void *ctx, int slot);
+    int (*read)(void *ctx, int slot, uint32_t offset, uint32_t bytes, uint8_t *buffer);
+    int (*write)(void *ctx, int slot, uint32_t offset, uint32_t bytes, uint8_t *buffer);
+};
+
+extern int pdp8_install_rk8e(pdp8_t *pdp8, pdp8_rk8e_callbacks_t *callbacks, pdp8_rk8e_t **rk8e);
+
 #endif
 

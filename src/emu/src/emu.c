@@ -14,6 +14,7 @@
 #include "emu.h"
 #include "options.h"
 #include "pt_driver.h"
+#include "rk_driver.h"
 #include "tty_driver.h"
 #include "bootprom.h"
 
@@ -81,6 +82,11 @@ int main(int argc, char *argv[]) {
 
     if (emu_install_pt(pdp8) < 0) {
         fprintf(stderr, "could not create pt driver\n");
+        return 1;
+    }
+
+    if (emu_install_rk(pdp8) < 0) {
+        fprintf(stderr, "could not create rk driver\n");
         return 1;
     }
 

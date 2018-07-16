@@ -5,6 +5,7 @@ add_library(pdp8
   pdp8/src/pdp8_console.c
   pdp8/src/pdp8_cpu.c
   pdp8/src/pdp8_eae.c
+  pdp8/src/pdp8_rk8e.c
   pdp8/src/pdp8_mex_tso.c
   pdp8/src/pdp8_punch.c
   pdp8/src/pdp8_trace.c
@@ -41,6 +42,7 @@ add_executable(emu
   emu/src/commandset.c
   emu/src/options.c
   emu/src/pt_driver.c
+  emu/src/rk_driver.c
   emu/src/tty_driver.c)
 target_link_libraries(emu pdp8)
 
