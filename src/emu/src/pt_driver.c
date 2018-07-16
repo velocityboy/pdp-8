@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <sys/termios.h>
 #include <unistd.h>
@@ -15,12 +16,16 @@ typedef struct pt_driver_t {
     FILE *fpun;
     int rdr_dev_id;
     int pun_dev_id;
+    int halt_on_eof;
 } pt_driver_t;
 
 static void ptr_load_media(void *ctx, int slot, char *name);
 static void ptr_unload_media(void *ctx, int slot);
 static void ptp_load_media(void *ctx, int slot, char *name);
 static void ptp_unload_media(void *ctx, int slot);
+static char **ptr_get_setting_names(void *ctx);
+static int  ptr_get_setting(void *ctx, char *name, int *val);
+static int  ptr_set_setting(void *ctx, char *name, int val);
 
 static int emu_load_reader(pt_driver_t *pt, FILE *fp);
 static int emu_load_punch(pt_driver_t *pt, FILE *fp);
@@ -53,12 +58,17 @@ int emu_install_pt(pdp8_t *pdp8) {
 
     emu_device_t device;
 
+    memset(&device, 0, sizeof(device));
+
     device.name = "PTR";
     device.description = "paper tape reader";
     device.slots = 1;
     device.ctx = pt;
     device.load_media = &ptr_load_media;
     device.unload_media = &ptr_unload_media;
+    device.get_setting_names = &ptr_get_setting_names;
+    device.get_setting = &ptr_get_setting;
+    device.set_setting = &ptr_set_setting;
     ret = emu_register_device(&device);
     if (ret < 0) {
         /* TODO need ability to uninstall devices from hardware side */
@@ -66,6 +76,8 @@ int emu_install_pt(pdp8_t *pdp8) {
     }
     pt->rdr_dev_id = ret;
 
+    memset(&device, 0, sizeof(device));
+    
     device.name = "PTP";
     device.description = "paper tape punch";
     device.slots = 1;
@@ -100,6 +112,32 @@ static void ptr_load_media(void *ctx, int slot, char *name) {
 static void ptr_unload_media(void *ctx, int slot) {
     pt_driver_t *pt = ctx;
     emu_load_reader(pt, NULL);
+}
+
+static char **ptr_get_setting_names(void *ctx) {
+    static char *names[] = {
+        "halt_on_eof",
+        NULL,
+    };
+    return names;
+}
+
+static int ptr_get_setting(void *ctx, char *name, int *val) {
+    pt_driver_t *pt = ctx;
+    if (strcasecmp(name, "halt_on_eof") == 0) {
+        *val = pt->halt_on_eof;
+        return 0;
+    }
+    return -1;
+}
+
+static int ptr_set_setting(void *ctx, char *name, int val) {
+    pt_driver_t *pt = ctx;
+    if (strcasecmp(name, "halt_on_eof") == 0) {
+        pt->halt_on_eof = val;
+        return 0;
+    }
+    return -1;
 }
 
 static void ptp_load_media(void *ctx, int slot, char *name) {
@@ -178,6 +216,10 @@ static void try_send(pt_driver_t *pt) {
 
     int ch = fgetc(pt->frdr);
     if (ch == EOF) {
+        if (pt->halt_on_eof) {
+            pt->pdp8->run = 0;
+            pt->pdp8->halt_reason = PDP8_HALT_DEVICE_REQUEST;
+        }
         fclose(pt->frdr);
         pt->frdr = NULL;
         return;

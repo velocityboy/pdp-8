@@ -84,6 +84,7 @@ enum pdp8_halt_reason_t {
     PDP8_HALT_SCL_UNSUPPORTED,
     PDP8_HALT_CAF_HANG,
     PDP8_HALT_FRONT_PANEL,
+    PDP8_HALT_DEVICE_REQUEST,
 };
 
 /* 
@@ -162,7 +163,7 @@ static inline int pdp8_interrupts_enabled(pdp8_t *pdp8) {
 }
 
 extern void pdp8_write_if_safe(pdp8_t *pdp8, uint16_t addr, uint12_t value);
-    
+
 extern pdp8_t *pdp8_create();
 extern void pdp8_free(pdp8_t *pdp8);
 

@@ -34,9 +34,11 @@ static void enable(char*);
 static void go(char *);
 static void bootprom(char *);
 static void devlist(char *);
+static void device(char *);
 static void media(char *);
 static void trace(char *);
 
+static int dev_by_name(char *p, int *slot);    
 static int octal(char **);
 static char *trim(char *str);
 static int parse(char *str, char **tokens, int max_tok);
@@ -44,6 +46,7 @@ static int parse(char *str, char **tokens, int max_tok);
 static command_t commands[] = {
     { "bootprom",   "bp", "xxx load bootstrap from prom address xxx", &bootprom },
     { "deposit",    "d",  "xxxx dd [dd ...]", &deposit },
+    { "dev",        "de", "device settings value", &device },
     { "devlist",    "dl", "show installed devices", &devlist },
     { "enable",     "en", "option-name (lists options with no args)", &enable },
     { "examine",    "ex", "xxxxx[-yyyyy] examine core", &examine },
@@ -351,6 +354,40 @@ static void enable(char *name) {
     }
 }
 
+static char *halt_reason(pdp8_halt_reason_t halt) {
+    switch (halt) {
+        case PDP8_HALT_HLT_INSTRUCTION:
+            return "executed HLT instruction";
+
+        case PDP8_HALT_SWP_UNSUPPORTED:
+            return "SWP unsupported on current CPU";
+
+        case PDP8_HALT_IAC_ROTS_UNSUPPORTED:
+            return "IAC with rotations not supported on current CPU";
+
+        case PDP8_HALT_CMA_ROTS_UNSUPPORTED:
+            return "CMA with rotations not supported on current CPU";
+
+        case PDP8_HALT_CLA_NMI_UNSUPPORTED:
+            return "CLA with NMI not supported on current CPU";
+
+        case PDP8_HALT_SCL_UNSUPPORTED:
+            return "SCL unsupported on current CPU";
+
+        case PDP8_HALT_CAF_HANG:
+            return "CAF unsupported on current CPU";
+            
+        case PDP8_HALT_FRONT_PANEL:
+            return "requested by operator";
+
+        case PDP8_HALT_DEVICE_REQUEST:
+            return "requested by device";
+
+        default:
+            return "unknown reason";
+    }
+}
+
 static void go(char *args) {
     const int BLOCK = 100;
     const int BLOCK_USEC = 120; /* fastest instruction is 1.2 usec */
@@ -389,6 +426,10 @@ static void go(char *args) {
         select(1, &fds, NULL, NULL, &end);
     }
     emu_end_tty(tty);
+
+    if (!pdp8->run) {
+        printf("\nhalt: %s\n", halt_reason(pdp8->halt_reason));
+    }
 }
 
 static void bootprom(char *tail) {
@@ -422,11 +463,54 @@ static void devlist(char *tail) {
         }
 
         printf("\n");
-        if (dev->load_media) {
+        if (dev->load_media && dev->unload_media) {
             printf("\tcan load and unload media.\n");
+        }
+
+        if (dev->get_setting_names && dev->set_setting && dev->get_setting) {
+            char **settings = (dev->get_setting_names)(dev->ctx);
+            printf("\tsettings\n");
+            for (char **p = settings; *p; p++) {
+                int val = 0;
+                (dev->get_setting)(dev->ctx, *p, &val);
+                printf("\t\t%s %d\n", *p, val);
+            }
         }
     }
 }
+
+static void device(char *tail) {
+    char *tokens[4];
+    int n = parse(tail, tokens, 4);
+    if (n < 3) {
+        printf("dev: device setting value\n");
+        return;
+    }
+
+    int slot= 0;
+    int dev = dev_by_name(tokens[0], &slot);
+    if (dev < 0) {
+        printf("dev: no device named %s\n", tokens[0]);
+        return;
+    }
+
+    if (devices[dev].set_setting == NULL) {
+        printf("dev: device %s has no settings.\n", tokens[0]);
+        return;
+    }
+
+    int val;
+    int used;
+    if (sscanf(tokens[2], "%d %n", &val, &used) != 1 || used != strlen(tokens[2])) {
+        printf("dev: invalid integer value %s\n", tokens[2]);
+        return;
+    }
+
+    if (devices[dev].set_setting(devices[dev].ctx, tokens[1], val) < 0) {
+        printf("dev: %s has no setting %s\n", tokens[0], tokens[1]);
+    }
+}
+
 
 static int dev_by_name(char *p, int *slot) {
     char *q = p;
