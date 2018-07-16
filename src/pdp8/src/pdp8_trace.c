@@ -479,7 +479,7 @@ static uint8_t *list_end_instruction(uint8_t *p, uint8_t *pend, FILE *fp, trace_
                 count++;
             }
         }
-        if (pend - p < 2 * sizeof(uint16_t)) {
+        if (pend - p < count * sizeof(uint16_t)) {
             tflag = 1;
         }
     }

@@ -53,6 +53,7 @@ int pdp8_disassemble(uint16_t addr, uint16_t *op, int eae_mode_b, char *decoded,
   buffer_t buf; 
   buf.next = decoded;
   buf.remaining = decoded_size;
+  buf.overflow = 0;
 
   if (decoded_size <= 0) {
     return -1;
