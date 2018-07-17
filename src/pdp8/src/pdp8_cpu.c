@@ -385,6 +385,13 @@ void pdp8_schedule(pdp8_t *pdp8, int n, void (*callback)(void *), void *ctx) {
     scheduler_insert(pdp8->scheduler, pdp8->instr_count + n, callback, ctx);
 }
 
+/*
+ * Remove all matching scheduled events
+ */
+void pdp8_unschedule(pdp8_t *pdp8, void (*callback)(void *), void *ctx) {
+    scheduler_delete(pdp8->scheduler, callback, ctx);
+}
+
 /* 
  * For testing, it's useful to be able to skip directly to queued
  * events.

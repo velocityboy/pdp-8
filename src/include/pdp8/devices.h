@@ -88,6 +88,15 @@ struct pdp8_rk8e_callbacks_t {
 };
 
 extern int pdp8_install_rk8e(pdp8_t *pdp8, pdp8_rk8e_callbacks_t *callbacks, pdp8_rk8e_t **rk8e);
+extern void pdp8_rk8e_set_mounted(pdp8_rk8e_t *rk, int slot, int mounted);
+
+/* RK8-E */
+#define DSKP 06741 
+#define DCLR 06742
+#define DLAG 06743 
+#define DLCA 06744
+#define DRST 06745
+#define DLDC 06746
 
 #endif
 

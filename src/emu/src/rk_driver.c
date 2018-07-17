@@ -83,6 +83,7 @@ static void rk_load_media(void *ctx, int slot, char *name) {
     }
 
     rk->disks[slot] = fp;
+    pdp8_rk8e_set_mounted(rk->rk8e, slot, 1);
 }
 
 static void rk_unload_media(void *ctx, int slot) {
@@ -99,6 +100,7 @@ static void rk_unload_media(void *ctx, int slot) {
 
     fclose(rk->disks[slot]);
     rk->disks[slot] = NULL;
+    pdp8_rk8e_set_mounted(rk->rk8e, slot, 0);
 }
 
 static int rk_has_media(void *ctx, int slot) {
@@ -122,7 +124,10 @@ static int rk_io(void *ctx, int slot, uint32_t offset, uint32_t bytes, uint8_t *
         return -1;
     }
 
-    fseek(fp, offset, SEEK_SET);
+    if (fseek(fp, offset, SEEK_SET) < 0) {
+        return -1;
+    }
+
     if (fop(buffer, 1, bytes, fp) != bytes) {
         return -1;
     }

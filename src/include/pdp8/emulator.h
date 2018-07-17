@@ -187,6 +187,7 @@ extern void pdp8_step(pdp8_t *pdp8);
 /* API for devices */
 extern int pdp8_alloc_intr_bits(pdp8_t *pdp, int bits);
 extern void pdp8_schedule(pdp8_t *pdp, int n, void (*callback)(void *), void *ctx);
+extern void pdp8_unschedule(pdp8_t *pdp, void (*callback)(void *), void *ctx);
 
 /* for testing ONLY - fire everything in the scheduler */
 extern void pdp8_drain_scheduler(pdp8_t *pdp8);

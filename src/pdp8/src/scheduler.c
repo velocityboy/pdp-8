@@ -3,6 +3,7 @@
  */
 #include <assert.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,6 +24,9 @@ struct scheduler_t {
     int allocated;
     int free_node;
 };
+
+static void filter_up(scheduler_t *sch, int n);    
+static void filter_down(scheduler_t *sch, int n);    
 
 scheduler_t *scheduler_create() {
     scheduler_t *sch = (scheduler_t *)calloc(1, sizeof(scheduler_t));
@@ -67,22 +71,38 @@ int scheduler_insert(scheduler_t *sch, uint64_t time, scheduler_event_t event, v
     sch->nodes[n].ctx = ctx;
     sch->nodes[n].event = event;
 
-    while (n != 1) {
-        int parent = n / 2;
-
-        if (sch->nodes[n].key >= sch->nodes[parent].key) {
-            break;
-        }
-
-        node_t temp = sch->nodes[n];
-        sch->nodes[n] = sch->nodes[parent];
-        sch->nodes[parent] = temp;
-
-        n = parent;
-    }
+    filter_up(sch, n);
 
     return 0;
 }
+
+int scheduler_delete(scheduler_t *sch, scheduler_event_t event, void *ctx) {
+    int found = 0;
+
+    /* note that we delete ALL matching events */
+    for (int n = 1; n < sch->free_node; n++) {
+        if (sch->nodes[n].event == event && sch->nodes[n].ctx == ctx) {
+            if (n == sch->free_node - 1) {
+                sch->free_node--;
+                n = 1;
+                continue;
+            }
+
+            sch->nodes[n] = sch->nodes[sch->free_node - 1];
+            sch->free_node--;
+
+            /* this is a min heap, so if this node is less than the parent, it neads to move up */
+            if (n == 1 && sch->nodes[n].key > sch->nodes[n / 2].key) {
+                filter_down(sch, n);
+            } else {
+                filter_up(sch, n);
+            }
+        }
+    }
+
+    return found ? 0 : -1;
+}
+
 
 void scheduler_clear(scheduler_t *sch) {
     sch->free_node = 1;
@@ -109,9 +129,28 @@ int scheduler_extract_min(scheduler_t *sch, scheduler_callback_t *callback) {
     callback->ctx = sch->nodes[1].ctx;
 
     sch->nodes[1] = sch->nodes[--sch->free_node];
+    filter_down(sch, 1);
 
-    int n = 1;
+    return 0;
+}
 
+static void filter_up(scheduler_t *sch, int n) {
+    while (n != 1) {
+        int parent = n / 2;
+
+        if (sch->nodes[n].key >= sch->nodes[parent].key) {
+            break;
+        }
+
+        node_t temp = sch->nodes[n];
+        sch->nodes[n] = sch->nodes[parent];
+        sch->nodes[parent] = temp;
+
+        n = parent;
+    }
+}
+
+static void filter_down(scheduler_t *sch, int n) {
     while (1) {
         int left = 2 * n;
         int right = left + 1;
@@ -138,7 +177,12 @@ int scheduler_extract_min(scheduler_t *sch, scheduler_callback_t *callback) {
 
         n = swap;
     }
-
-    return 0;
 }
 
+void scheduler_print(scheduler_t *sch) {
+    printf("heap has %d entries\n", sch->free_node - 1);
+    for (int i = 1; i < sch->free_node; i++) {
+        printf("%d ", (int)sch->nodes[i].key);
+    }
+    printf("\n");
+}
