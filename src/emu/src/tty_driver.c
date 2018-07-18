@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -57,7 +58,7 @@ void emu_start_tty(tty_driver_t *tty) {
     tcgetattr(0, &tty->def_termios);
     struct termios t = tty->def_termios;
 
-    t.c_lflag &= ~(ICANON|ISIG|IXON|IXOFF|IEXTEN);
+    t.c_lflag &= ~(ICANON|ISIG|IXON|IXOFF|IEXTEN|ECHO);
     t.c_cc[VMIN] = 0;
     t.c_cc[VTIME] = 0;
     tcsetattr(0, TCSANOW, &t);
@@ -119,6 +120,18 @@ static void try_send(tty_driver_t *tty) {
     tty->hw_busy = 1;
 }
 
+static uint8_t filter_input(uint8_t ch) {
+    if (isalpha(ch)) {
+        return toupper(ch);
+    }
+
+    if (ch == '\n') {
+        return '\r';
+    } 
+
+    return ch;
+}
+
 static void tty_service(void *ctx) {
     tty_driver_t *tty = ctx;
     int end = 0;
@@ -154,13 +167,13 @@ static void tty_service(void *ctx) {
          * the 'end' one, so send it along to the hardware.
          */
         for (int i = 0; i < end; i++) {
-            if (!enqueue(tty, end_key[i])) {
+            if (!enqueue(tty, filter_input(end_key[i]))) {
                 overflow++;
             }
         }
         end = 0;
 
-        if (!enqueue(tty, ch)) {
+        if (!enqueue(tty, filter_input(ch))) {
             overflow++;
         }
     }
