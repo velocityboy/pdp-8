@@ -10,6 +10,7 @@ add_library(pdp8
   pdp8/src/pdp8_punch.c
   pdp8/src/pdp8_trace.c
   pdp8/src/pdp8_util.c 
+  pdp8/src/logger.c
   pdp8/src/scheduler.c)
 
 add_executable(pdp8_tests

@@ -151,6 +151,11 @@ struct pdp8_t {
      */
     struct pdp8_trace_t *trace;
     char *tracefile;
+
+    /*
+     * Logging
+     */
+    int iot_logid;
 };
 
 /* flags for intr_enable_mask */

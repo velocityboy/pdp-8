@@ -4,6 +4,7 @@
 #include <stdlib.h>
  
 #include "pdp8/devices.h"
+#include "pdp8/logger.h"
 
 static int tty_install(pdp8_device_t *dev, pdp8_t *pdp8);
 static void tty_reset(pdp8_device_t *dev);
@@ -24,6 +25,7 @@ struct pdp8_console_t {
     uint32_t enable_flags;
 
     uint8_t kbd_buffer;
+    int logid;
 
     pdp8_console_callbacks_t callbacks;
 };
@@ -57,6 +59,8 @@ int pdp8_install_console(pdp8_t *pdp8, pdp8_console_callbacks_t *callbacks, pdp8
     dev->enable_flags = dev->all_bits;
 
     dev->callbacks = *callbacks;
+
+    dev->logid = logger_add_category("TT");
     
     int ret = pdp8_install_device(pdp8, &dev->device);
     if (ret < 0) {
@@ -85,8 +89,11 @@ static int tty_install(pdp8_device_t *dev, pdp8_t *pdp8) {
 
 int pdp8_console_kbd_byte(pdp8_console_t *con, uint8_t ch) {
     if (con->dev_flags & con->kbd_intr_bit) {
+        logger_log(con->logid, "system tried to send kbd %03o but device is busy", ch);
         return PDP8_ERR_BUSY;
     }
+
+    logger_log(con->logid, "system sent kbd %03o but device is busy", ch);
 
     /* NB TTY and original DECwriter set the high bit on input data */
     con->kbd_buffer = ch | 0200;
@@ -112,6 +119,7 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
     pdp8_console_t *con = (pdp8_console_t *)dev;
     switch (opword) {
         case KCF:
+            logger_log(con->logid, "KCF");
             con->dev_flags &= ~con->kbd_intr_bit;
             fire_interrupts(con);
             pdp8_schedule(pdp8, 20, con->callbacks.kbd_ready, con->callbacks.ctx);
@@ -119,11 +127,15 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
 
         case KSF: 
             if (con->dev_flags & con->kbd_intr_bit) {
+                logger_log(con->logid, "KSF - skipping");
                 pdp8->pc = INC12(pdp8->pc);
+                return;
             }
+            logger_log(con->logid, "KSF - not skipping");
             break;
 
         case KCC:
+            logger_log(con->logid, "KCC");
             con->dev_flags &= ~con->kbd_intr_bit;
             fire_interrupts(con);
             con->pdp8->ac = 0;
@@ -131,20 +143,24 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             break;
         
         case KRS:
+            logger_log(con->logid, "KRS - returning %03o", con->kbd_buffer);
             con->pdp8->ac |= con->kbd_buffer;
             break;
 
         case KIE:
             /* NB KIE affects the interrupt enables for the whole device, not just the kbd */
             if (con->pdp8->ac & BIT11) {
+                logger_log(con->logid, "KIE enabling interrupts");
                 con->enable_flags |= (con->kbd_intr_bit | con->prt_intr_bit);
             } else {
+                logger_log(con->logid, "KIE disabling interrupts");
                 con->enable_flags &= ~(con->kbd_intr_bit | con->prt_intr_bit);
             }
             fire_interrupts(con);
             break;
 
         case KRB:
+            logger_log(con->logid, "KRB returning %03o", con->kbd_buffer);
             con->dev_flags &= ~con->kbd_intr_bit;
             fire_interrupts(con);
             con->pdp8->ac = con->kbd_buffer;
@@ -152,37 +168,43 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             break;
 
         case TFL:
+            logger_log(con->logid, "TFL");
             con->dev_flags |= con->prt_intr_bit;
             fire_interrupts(con);
             break;
 
         case TSF:
             if (con->dev_flags & con->prt_intr_bit) {
+                logger_log(con->logid, "TSF - skipping");
                 pdp8->pc = INC12(pdp8->pc);
+                return;
             }
+            logger_log(con->logid, "TSF - not skipping");
             break;
 
         case TCF:
+            logger_log(con->logid, "TCF");
             con->dev_flags &= ~con->prt_intr_bit;
             fire_interrupts(con);
             break;
 
         case TPC:
+            logger_log(con->logid, "TPC sending %03o", con->pdp8->ac & 0177);
             con->callbacks.print(con->callbacks.ctx, con->pdp8->ac & 0177);
             pdp8_schedule(pdp8, 20, prt_interrupt, con);
             break;
 
-        case TSK:
+        case TSK:            
             if (con->pdp8->intr_mask & (con->prt_intr_bit | con->kbd_intr_bit)) {
+                logger_log(con->logid, "TSK - skipping");
                 pdp8->pc = INC12(pdp8->pc);
+                return;
             }
+            logger_log(con->logid, "TSK - not skipping");
             return;
         
         case TLS:
-            /* TODO this is TCF + TPC, but we immediately turn around and set
-             * the done flag again. we should introduce some real-world
-             * delay here.
-             */
+            logger_log(con->logid, "TLS sending %03o", con->pdp8->ac & 0177);
             con->dev_flags &= ~con->prt_intr_bit;
             fire_interrupts(con);
             con->callbacks.print(con->callbacks.ctx, con->pdp8->ac & 0177);
@@ -195,10 +217,12 @@ static void fire_interrupts(pdp8_console_t *con) {
     /* set interrupt bits if device flag is set and enable is on */
     uint32_t mask = con->dev_flags & con->enable_flags;
     con->pdp8->intr_mask = (con->pdp8->intr_mask & ~con->all_bits) | mask;
+    logger_log(con->logid, "%s interrupt request", mask ? "asserting" : "releasing");
 }
 
 static void prt_interrupt(void *p) {
     pdp8_console_t *con = p;
+    logger_log(con->logid, "firing printer interrupt");
     con->dev_flags |= con->prt_intr_bit;
     fire_interrupts(con);
 }

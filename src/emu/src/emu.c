@@ -10,6 +10,7 @@
 
 #include "pdp8/emulator.h"
 #include "pdp8/devices.h"
+#include "pdp8/logger.h"
 #include "commandset.h"
 #include "emu.h"
 #include "options.h"
@@ -38,6 +39,7 @@ static void devlist(char *);
 static void device(char *);
 static void media(char *);
 static void trace(char *);
+static void logger(char *);
 
 static int dev_by_name(char *p, int *slot);    
 static int octal(char **);
@@ -54,6 +56,7 @@ static command_t commands[] = {
     { "exit",       "q",  "exit the emulator", &exit_ },
     { "go",         "g",  "start execution", &go },
     { "help",       "h",  "display help for all commands", &help },
+    { "log",        "l",  "[enable|disable category]|list|start file|stop", &logger },
     { "media",      "m",  "load|unload device [fname]", &media },
     { "registers",  "r",  "display the CPU state", &registers },
     { "set",        "s",  "AC|PC|LINK|RUN|SR %o set register", &set },
@@ -638,6 +641,49 @@ static void trace(char *tail) {
     }
 }
 
+//    { "log",        "l",  "[enable|disable category]|list|start file|stop", &logger },
+
+static void logger(char *tail) { 
+    char *tokens[3];
+    int n = parse(tail, tokens, 3);
+
+    if (n < 1) {
+        printf("log: missing subcommand\n");
+        return;
+    }
+
+    char *sub = tokens[0];
+    int enable = strcasecmp(sub, "enable") == 0;
+    int disable = strcasecmp(sub, "disable") == 0;
+
+    if (enable || disable) {
+        if (n != 2) {
+            printf("log: enable|disable needs category\n");
+            return;
+        }
+        int id = logger_get_category(tokens[1]);
+        if (id < 0) {
+            printf("log: no category named %s\n", tokens[1]);
+            return;
+        }
+        logger_enable_category(id, enable);
+    } else if (strcasecmp(sub, "list") == 0) {
+        for (char **p = logger_get_categories(); *p; p++) {
+            printf("%s ", *p);
+        }
+        printf("\n");
+    } else if (strcasecmp(sub, "start") == 0) {
+        if (n != 2) {
+            printf("log: start needs filename\n");
+            return;
+        }
+        if (logger_set_file(tokens[1]) < 0) {
+            printf("log: could not open %s\n", tokens[1]);
+        }
+    } else if (strcasecmp(sub, "stop") == 0) {
+        logger_close_file();                                
+    }
+}
     
 static int octal(char **str) {
     int out = 0;

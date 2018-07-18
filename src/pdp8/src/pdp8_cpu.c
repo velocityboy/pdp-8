@@ -4,6 +4,7 @@
 
 #include "pdp8/defines.h"
 #include "pdp8/emulator.h"
+#include "pdp8/logger.h"
 
 #include "pdp8_eae.h"
 #include "pdp8_trace.h"
@@ -91,6 +92,8 @@ pdp8_t *pdp8_create() {
     pdp8->scheduler = scheduler_create();
 
     pdp8_set_model(pdp8, PDP8_E);
+
+    pdp8->iot_logid = logger_add_category("IOT");
 
     return pdp8;
 }
@@ -336,6 +339,7 @@ void pdp8_step(pdp8_t *pdp8) {
             break;
 
         case PDP8_OP_IOT: {
+            logger_log(pdp8->iot_logid, "IOT %04o", opword);
             if (PDP8_IOT_DEVICE_ID(opword) == 0) {
                 cpu_iots(opword, pdp8);
             } else {

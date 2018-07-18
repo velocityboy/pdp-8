@@ -2,10 +2,13 @@
  * IOT dispatch for RK8E: controller for RK05
  */
 #include <assert.h>
+#include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
  
 #include "pdp8/devices.h"
+#include "pdp8/logger.h"
 
 /* status register - see M7104, D02A data buf & status (6RK5) */
 static const uint12_t DRST_DONE             = 04000;
@@ -91,7 +94,8 @@ struct pdp8_rk8e_t {
     int ctrlr_busy;
 
     uint32_t intr_bit;
-
+    int logid;
+    
     pdp8_rk8e_callbacks_t callbacks;
 
     pdp8_rk05_t drives[DRIVES];
@@ -157,6 +161,8 @@ int pdp8_install_rk8e(pdp8_t *pdp8, pdp8_rk8e_callbacks_t *callbacks, pdp8_rk8e_
 
     dev->callbacks = *callbacks;
 
+    dev->logid = logger_add_category("RK");
+
     for (int i = 0; i < DRIVES; i++) {
         dev->drives[i].rk = dev;
     }
@@ -209,12 +215,15 @@ static void rk_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             /* AC10-11 are decoded to reset the controller, drive, or status register */
             switch (pdp8->ac & 03) {
                 case 0: /* status register */
+                    logger_log(rk->logid, "DCLR status register");
                     if (rk->ctrlr_busy) {
+                        logger_log(rk->logid, "... controller busy");
                         rk->status |= DRST_BUSY_ERR;
                     }
                     break;
 
                 case 1: /* reset controller */
+                    logger_log(rk->logid, "DCLR reset controller");
                     rk->command = 0;
                     rk->ctrlr_busy = 0;
                     rk->memaddr = 0;
@@ -226,19 +235,26 @@ static void rk_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
                     break;
 
                 case 2: /* reset drive */
+                    logger_log(rk->logid, "DCLR reset drive");
                     /* can't if controller is busy */
                     if (rk->ctrlr_busy) {
+                        logger_log(rk->logid, "... controller busy");
                         rk->status |= DRST_BUSY_ERR;
                         break;
                     }
                     /* reset by seeking to 0 */
                     drive_start(rk, drf_seek, 0);
                     break;
+
+                default:
+                    logger_log(rk->logid, "DCLR undefined sub-op (AC %04o)", pdp8->ac);
             }
             break;
 
         case DLAG:
+            logger_log(rk->logid, "DLAG dskaddr %4o", pdp8->ac);
             if (rk->ctrlr_busy) {
+                logger_log(rk->logid, "... controller busy");
                 rk->status |= DRST_BUSY_ERR;
                 break;
             }
@@ -248,7 +264,9 @@ static void rk_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             break;
 
         case DLCA:
+            logger_log(rk->logid, "DLCA memaddr %4o", pdp8->ac);
             if (rk->ctrlr_busy) {
+                logger_log(rk->logid, "... controller busy");
                 rk->status |= DRST_BUSY_ERR;
                 break;
             }
@@ -270,12 +288,15 @@ static void rk_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
                 rk->status |= DRST_RDY_SRW;
             }
 
+            logger_log(rk->logid, "DRST status %04o", rk->status);
             pdp8->ac = rk->status;
             break;
         }
 
         case DLDC:
+            logger_log(rk->logid, "DLDC command %04o", pdp8->ac);
             if (rk->ctrlr_busy) {
+                logger_log(rk->logid, "... controller busy");
                 rk->status |= DRST_BUSY_ERR;
                 break;
             }
@@ -290,6 +311,7 @@ static void drive_start(pdp8_rk8e_t *rk, rk8e_drive_command_t cmd, int cyl) {
     pdp8_rk05_t *drive = selected_unit(rk);
     /* flag errors first */
     if (!drive->mounted) {
+        logger_log(rk->logid, "start: selected unit %d is not mounted", drive - rk->drives);
         /* no media, flag not ready */
         rk->status |= DRST_DONE | DRST_DISK_NOT_READY | DRST_STATUS_ERR;
         return;
@@ -297,12 +319,14 @@ static void drive_start(pdp8_rk8e_t *rk, rk8e_drive_command_t cmd, int cyl) {
 
     /* drive already busy */
     if (drive->busy) {
+        logger_log(rk->logid, "start: selected unit %d is already busy", drive - rk->drives);
         rk->status |= DRST_DONE | DRST_STATUS_ERR;
         return;
     }
 
     /* cylinder out of range */
     if (cyl >= CYLINDERS) {
+        logger_log(rk->logid, "start: cylinder %d is out of range", cyl);
         rk->status |= DRST_DONE | DRST_CYL_ADDR_ERR | DRST_STATUS_ERR;
         return;
     }
@@ -312,6 +336,7 @@ static void drive_start(pdp8_rk8e_t *rk, rk8e_drive_command_t cmd, int cyl) {
         case drf_read_all:
         case drf_write:
         case drf_write_all:
+            logger_log(rk->logid, "start: scheduling read/write op");
             drive->func = (cmd == drf_read || cmd == drf_read_all) ? drf_read : drf_write;
             drive->busy = 1;
             rk->ctrlr_busy = 1;
@@ -321,6 +346,7 @@ static void drive_start(pdp8_rk8e_t *rk, rk8e_drive_command_t cmd, int cyl) {
 
         case drf_write_lock:
             /* NB the only way to turn this off is device reset */
+            logger_log(rk->logid, "start: setting selected unit %d to be write locked", drive - rk->drives);
             drive->flags |= RK05_WLOCK_RO;
             rk->status |= DRST_DONE;
             break;
@@ -331,12 +357,14 @@ static void drive_start(pdp8_rk8e_t *rk, rk8e_drive_command_t cmd, int cyl) {
             /* note that seek does not keep the controller busy, so the system can 
              * service other drives
              */
+            logger_log(rk->logid, "start: scheduling seek");
             drive->cyl = cyl;
             pdp8_schedule(rk->pdp8, io_operation_time(drive->cyl, cyl), &drive_schedule, drive);
             break;
 
         default:
             /* undefined function */
+            logger_log(rk->logid, "start: setting error on undefined drive func %d", cmd);
             rk->status |= DRST_DONE | DRST_STATUS_ERR;
             break;
     }
@@ -346,21 +374,26 @@ static void drive_schedule(void *param) {
     pdp8_rk05_t *drive = param;
     pdp8_rk8e_t *rk = drive->rk;
 
+    logger_log(rk->logid, "schedule: running schedule op for unit %d", drive - rk->drives);
+
     drive->busy = 0;
 
     if (drive->mounted == 0) {
+        logger_log(rk->logid, "schedule: drive is no longer mounted");
         rk->status |= DRST_STATUS_ERR | DRST_DISK_NOT_READY | DRST_DONE;
         fire_interrupt(rk);
         return;        
     }
 
     if (drive->func == drf_seek && drive == selected_unit(rk) && (rk->command & DLDC_SEEK_DONE) != 0) {
+        logger_log(rk->logid, "schedule: setting done on seek completion");
         rk->status |= DRST_DONE;
         fire_interrupt(rk);
         return;
     }
 
     if (drive->func == drf_write && (drive->flags & RK05_READ_ONLY) != 0) {
+        logger_log(rk->logid, "schedule: setting write lock error");
         rk->status |= DRST_WRITE_LOCK_ERR | DRST_DONE;
         fire_interrupt(rk);
         return;
@@ -389,6 +422,9 @@ static void drive_schedule(void *param) {
     unsigned offset = rk->memaddr;
     unsigned words = (rk->command & DLDC_HALF_BLOCK) ? (WORDS_PER_SECTOR / 2) : WORDS_PER_SECTOR;
 
+    logger_log(rk->logid, "schedule: op is %s physical %5o words %o file offset %o", 
+        (drive->func == drf_read) ? "read" : "write", field|offset, words, fileoffs);
+
     assert(offset < 010000);
     unsigned left_in_field = 010000 - offset;
     unsigned xfer = (words < left_in_field) ? words : left_in_field;
@@ -398,17 +434,26 @@ static void drive_schedule(void *param) {
     /* TODO gate against reading/writing to nonexistent core */
 
     int err = io(ctx, slot, fileoffs, xfer * sizeof(uint16_t), (uint8_t*)&rk->pdp8->core[field | offset]) < 0;
+    if (err) {
+        logger_log(rk->logid, "schedule: initial transfer of %o words failed (%s)", xfer, strerror(errno));
+    }
     fileoffs += xfer * sizeof(uint16_t);
     if (!err && xfer < words) {
         xfer = words - xfer;
         err = io(ctx, slot, fileoffs, xfer * sizeof(uint16_t), (uint8_t*)&rk->pdp8->core[field]) < 0;
         fileoffs += xfer * sizeof(uint16_t);
+        if (err) {
+            logger_log(rk->logid, "schedule: second transfer of %o words failed (%s)", xfer, strerror(errno));
+        }
     }
 
     if (!err && drive->func == drf_write && (rk->command & DLDC_HALF_BLOCK) != 0) {
         uint16_t pad[WORDS_PER_SECTOR / 2];
         memset(pad, 0, sizeof(pad));
         err = io(ctx, slot, fileoffs, sizeof(pad), (uint8_t*)pad) < 0;
+        if (err) {
+            logger_log(rk->logid, "schedule: zero fill failed (%s)", xfer, strerror(errno));
+        }
     }
 
     if (err) {
@@ -425,6 +470,7 @@ static void drive_schedule(void *param) {
 static void fire_interrupt(pdp8_rk8e_t *rk) {
     uint32_t intr_mask = 0;
     if ((rk->status & (DRST_ERROR_BITS | DRST_DONE)) && (rk->command & DLDC_ENA_INT)) {
+        logger_log(rk->logid, "setting interrupt request");
         intr_mask = rk->intr_bit;
     }
     rk->pdp8->intr_mask = (rk->pdp8->intr_mask & ~rk->intr_bit) | intr_mask;
