@@ -218,7 +218,7 @@ void pdp8_trace_end_instruction(pdp8_trace_t *trc) {
 
 #define CHECK_BIT(b) \
     if (pdp8->b != trc->regs.b) { \
-        bitfields |= (pdp8->b ? 0 : (1 << treg_##b)); \
+        bitfields |= (pdp8->b ? (1 << treg_##b) : 0); \
         changed |= (1 << treg_##b); \
     }   
 

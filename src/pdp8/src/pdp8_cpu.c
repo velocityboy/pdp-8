@@ -452,6 +452,12 @@ static uint16_t effective_address(uint12_t op, uint12_t page, pdp8_t *pdp8) {
  * Execute an OPR group 1 instruction.
  */
 static void group_1(uint12_t op, pdp8_t *pdp8) {
+    static int nn = 0;
+    if (op == 07104 && pdp8->ac == 04000) {
+        ++nn;
+    }
+
+
     /* On some models, some bit combos are unsupported. */
     if ((op & (PDP8_OPR_GRP1_RAL | PDP8_OPR_GRP1_RAR)) != 0) {
         unsigned flags = pdp8->flags.flags;
