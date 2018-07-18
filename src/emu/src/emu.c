@@ -126,6 +126,7 @@ static void commandloop(FILE *fp) {
             printf("pdp8> ");
         }
         if (fgets(command, sizeof(command), fp) == NULL) {
+            printf("\n");
             break;
         }
         char *trimmed = trim(command);
