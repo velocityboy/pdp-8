@@ -88,6 +88,7 @@ static void tty_kbd_ready(void *ctx) {
 static void tty_print(void *ctx, char ch) {
     /* characters come in with the high bit set */
     putchar(ch & 0177);
+    fflush(stdout);
 }
 
 static void halt(tty_driver_t *tty) {
