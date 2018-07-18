@@ -6,6 +6,7 @@ add_library(pdp8
   pdp8/src/pdp8_cpu.c
   pdp8/src/pdp8_eae.c
   pdp8/src/pdp8_rk8e.c
+  pdp8/src/pdp8_mempar.c
   pdp8/src/pdp8_mex_tso.c
   pdp8/src/pdp8_punch.c
   pdp8/src/pdp8_trace.c

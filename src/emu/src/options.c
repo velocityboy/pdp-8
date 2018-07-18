@@ -15,11 +15,13 @@ struct option_t {
 
 static void enable_eae(pdp8_t *pdp8);
 static void enable_mex(pdp8_t *pdp8);
+static void enable_mpar(pdp8_t *pdp8);
 static void enable_8e(pdp8_t *pdp8);
 
 static option_t options[] = {
     { "eae", &enable_eae },
     { "mex", &enable_mex },
+    { "mpar", &enable_mpar },
     { "8e", &enable_8e },
     { NULL, NULL},
 };
@@ -72,5 +74,12 @@ void enable_8e(pdp8_t *pdp8) {
     int ret = pdp8_set_model(pdp8, PDP8_E);
     if (ret < 0) {
         printf("failed to upgrade model to PDP8/E (%d)\n", ret);
+    }
+}
+
+void enable_mpar(pdp8_t *pdp8) {
+    int ret = pdp8_install_mempar(pdp8);
+    if (ret < 0) {
+        printf("failed to install memory parity (%d)\n", ret);
     }
 }

@@ -1233,6 +1233,7 @@ DECLARE_TEST(eae_B_SAM, "EAE group B SAM") {
     
     pdp8_step(pdp8);
 
+    ASSERT_V(pdp8->ac == 0, "AC = MQ - AC");
     ASSERT_V(pdp8->link == 0, "LINK cleared on AC == MQ");
     ASSERT_V(pdp8->gt == 1, "GT set on SAC == SMQ");
     ASSERT_V(pdp8->pc == 01001, "PC incremented");
@@ -1250,6 +1251,7 @@ DECLARE_TEST(eae_B_SAM, "EAE group B SAM") {
     
     pdp8_step(pdp8);
 
+    ASSERT_V(pdp8->ac == 1, "AC = MQ - AC");
     ASSERT_V(pdp8->link == 0, "LINK cleared on AC < MQ");
     ASSERT_V(pdp8->gt == 1, "GT set on SAC < SMQ");
     ASSERT_V(pdp8->pc == 01001, "PC incremented");
@@ -1267,6 +1269,7 @@ DECLARE_TEST(eae_B_SAM, "EAE group B SAM") {
     
     pdp8_step(pdp8);
 
+    ASSERT_V(pdp8->ac == 07777, "AC = MQ - AC");
     ASSERT_V(pdp8->link == 1, "LINK set on AC > MQ");
     ASSERT_V(pdp8->gt == 0, "GT cleared on SAC > SMQ");
     ASSERT_V(pdp8->pc == 01001, "PC incremented");
@@ -1284,6 +1287,7 @@ DECLARE_TEST(eae_B_SAM, "EAE group B SAM") {
     
     pdp8_step(pdp8);
 
+    ASSERT_V(pdp8->ac == 04000, "AC = MQ - AC");
     ASSERT_V(pdp8->link == 1, "LINK set on AC > MQ");
     ASSERT_V(pdp8->gt == 1, "GT set on SAC < SMQ");
     ASSERT_V(pdp8->pc == 01001, "PC incremented");
@@ -1301,6 +1305,7 @@ DECLARE_TEST(eae_B_SAM, "EAE group B SAM") {
     
     pdp8_step(pdp8);
 
+    ASSERT_V(pdp8->ac == 07777, "AC = MQ - AC");
     ASSERT_V(pdp8->link == 1, "LINK set on AC > MQ");
     ASSERT_V(pdp8->gt == 0, "GT cleared on SAC > SMQ");
     ASSERT_V(pdp8->pc == 01001, "PC incremented");

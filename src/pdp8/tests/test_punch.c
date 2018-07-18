@@ -64,8 +64,9 @@ DECLARE_TEST(pun_RSF_RRB_RFC, "RSF, RRB and RFC instructions") {
     pdp8->core[1] = RSF;
     pdp8->core[2] = PDP8_OPR_GRP2 | PDP8_OPR_GRP2_HLT;
     pdp8->core[3] = RRB;
-    pdp8->core[4] = RFC;
-    pdp8->core[5] = RSF;
+    pdp8->core[4] = RSF;
+    pdp8->core[5] = RFC;
+    pdp8->core[6] = RSF;
     
     pdp8->pc = 01000;
 
@@ -77,11 +78,14 @@ DECLARE_TEST(pun_RSF_RRB_RFC, "RSF, RRB and RFC instructions") {
     pdp8_step(pdp8);        /* RRB (HLT should be skipped) */
     ASSERT_V(pdp8->ac == '@', "Reader data received"); 
 
-    /* RRB alone does not clear the reader flag */
+    /* RRB alone doesn't read another byte */
     ASSERT_V(callback_mocks.rdr_ready == 0, "rdr_ready not yet called");
     pdp8_drain_scheduler(pdp8);
     ASSERT_V(callback_mocks.rdr_ready == 0, "rdr_ready not yet called");
     
+    pdp8_step(pdp8);        /* RSF */
+    ASSERT_V(pdp8->pc == 5, "RRB cleared reader flag"); 
+
     pdp8_step(pdp8);        /* RFC */
 
     /* reader ready is scheduled so host can't sent bytes too fast */
@@ -89,10 +93,10 @@ DECLARE_TEST(pun_RSF_RRB_RFC, "RSF, RRB and RFC instructions") {
     pdp8_drain_scheduler(pdp8);
     ASSERT_V(callback_mocks.rdr_ready == 1, "rdr_ready called");
         
-    ASSERT_V(pdp8->pc == 5, "Interrupt routine executed");
+    ASSERT_V(pdp8->pc == 6, "Interrupt routine executed");
 
     pdp8_step(pdp8);        /* RSF (should not skip) */
-    ASSERT_V(pdp8->pc == 6, "RSF did not skip after flag cleared");
+    ASSERT_V(pdp8->pc == 7, "RSF did not skip after flag cleared");
 
     pdp8_free(pdp8);
 }

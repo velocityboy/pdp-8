@@ -98,5 +98,16 @@ extern void pdp8_rk8e_set_mounted(pdp8_rk8e_t *rk, int slot, int mounted);
 #define DRST 06745
 #define DLDC 06746
 
+extern int pdp8_install_mempar(pdp8_t *pdp8);
+
+#define DPI 06100
+#define SMP 06101
+#define EPI 06103
+#define CMP 06104
+#define SMP_CMP 06105
+#define CEP 06106
+#define SPO 06107
+
+
 #endif
 

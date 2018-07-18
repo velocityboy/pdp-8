@@ -422,6 +422,7 @@ static void op_b_sam(pdp8_t *pdp8) {
     int smq = pdp8->mq | ((pdp8->mq & BIT0) ? ~MASK12 : 0);
 
     pdp8->gt = sac <= smq ? 1 : 0;
+    pdp8->ac = (pdp8->mq - pdp8->ac) & MASK12;
 }
 
 /*-----------------------------------------------------------------------------

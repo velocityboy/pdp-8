@@ -641,8 +641,6 @@ static void trace(char *tail) {
     }
 }
 
-//    { "log",        "l",  "[enable|disable category]|list|start file|stop", &logger },
-
 static void logger(char *tail) { 
     char *tokens[3];
     int n = parse(tail, tokens, 3);

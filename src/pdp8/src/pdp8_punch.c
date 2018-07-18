@@ -122,6 +122,7 @@ static void pun_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
 
         case RRB:
             pun->pdp8->ac |= pun->rdr_buffer;
+            pun->dev_flags &= ~pun->rdr_intr_bit;
             break;
 
         case RFC:
