@@ -522,10 +522,9 @@ static uint8_t *list_end_instruction(uint8_t *p, uint8_t *pend, FILE *fp, trace_
     fprintf(fp, "IF %1o%c ", regs->ifr >> 12, (changed & (1 << treg_ifr)) ? '*' : ' ');
     fprintf(fp, "DF %1o%c ", regs->dfr >> 12, (changed & (1 << treg_dfr)) ? '*' : ' ');
     fprintf(fp, "IB %1o%c ", regs->ibr >> 12, (changed & (1 << treg_ibr)) ? '*' : ' ');
-    fprintf(fp, "LINK %1o%c ", regs->link >> 12, (changed & (1 << treg_link)) ? '*' : ' ');
-    fprintf(fp, "EAEB %1o%c ", regs->eae_mode_b >> 12, (changed & (1 << treg_eae_mode_b)) ? '*' : ' ');
-    fprintf(fp, "GT %1o%c ", regs->gt >> 12, (changed & (1 << treg_gt)) ? '*' : ' ');
-    
+    fprintf(fp, "LINK %1o%c ", regs->link, (changed & (1 << treg_link)) ? '*' : ' ');
+    fprintf(fp, "EAEB %1o%c ", regs->eae_mode_b, (changed & (1 << treg_eae_mode_b)) ? '*' : ' ');
+    fprintf(fp, "GT %1o%c ", regs->gt, (changed & (1 << treg_gt)) ? '*' : ' ');
     
     fprintf(fp, "\n");
 
