@@ -6,8 +6,9 @@
 
 #include "pdp8_trace.h"
 
-const uint8_t TRACE_VERSION = 1;
+const uint8_t TRACE_VERSION = 2;
 const uint32_t INITIAL_TRACE_BUFFER_SIZE = 1024;
+const uint32_t MIN_BUFFER = INITIAL_TRACE_BUFFER_SIZE;
 
 typedef struct trace_reg_values_t {
     uint12_t ac;
@@ -26,21 +27,20 @@ struct pdp8_trace_t {
     pdp8_t *pdp8;
     uint8_t *trace;
     uint32_t allocated;
-    uint32_t used;
+    uint32_t cap;
+    uint32_t first_instr;
+    uint32_t next_instr;
+    uint32_t core_size;
     int out_of_memory;
     int locked;
-
-    /* cached registers to see what changed */
-    trace_reg_values_t regs;
+    trace_reg_values_t initial_regs;
 };
 
 #define TRACE_ENABLED(trc) (!((trc)->out_of_memory || (trc)->locked))
+#define TRACE_CIRCULAR_BUF(trc) ((trc)->cap != 0)
 
 typedef enum trace_type_t {
-    trc_version,
-    trc_all_registers,
     trc_out_of_memory,
-    trc_system_memory,
     trc_begin_instruction,
     trc_end_instruction,
     trc_interrupt,
@@ -48,7 +48,7 @@ typedef enum trace_type_t {
 } trace_type_t;
 
 typedef enum trace_regs_t {
-    // bitfields
+    /* bitfields */
     treg_link,
     treg_eae_mode_b,
     treg_gt,
@@ -63,35 +63,28 @@ typedef enum trace_regs_t {
     treg_word_last,
 } trace_regs_t;
 
-static uint8_t *alloc_trace_record(pdp8_trace_t *trc, int bytes);
+static uint32_t alloc_trace_record(pdp8_trace_t *trc, trace_type_t type, int bytes);
 
-static inline uint8_t *put_uint16(uint8_t *p, uint16_t data) {
-    *(uint16_t *)p = htons(data);
-    return p + sizeof(uint16_t);
-}
+static int will_wrap(pdp8_trace_t *trc, uint32_t index, size_t bytes);
+static inline uint32_t inc_index(pdp8_trace_t *trc, uint32_t index);
+static inline uint32_t put_uint8(pdp8_trace_t *trc, uint32_t index, uint8_t data);
+static inline uint32_t get_uint8(pdp8_trace_t *trc, uint32_t index, uint8_t *data);
+static inline uint32_t put_uint16(pdp8_trace_t *trc, uint32_t index, uint16_t data);
+static inline uint32_t put_uint32(pdp8_trace_t *trc, uint32_t index, uint32_t data);
+static inline uint32_t get_uint16(pdp8_trace_t *trc, uint32_t index, uint16_t *data);
+static inline uint32_t get_uint32(pdp8_trace_t *trc, uint32_t index, uint32_t *data);
 
-static inline uint8_t *put_uint32(uint8_t *p, uint32_t data) {
-    *(uint32_t *)p = htonl(data);
-    return p + sizeof(uint32_t);
-}
-
-static inline uint8_t *get_uint16(uint8_t *p, uint16_t *data) {
-    *data = ntohs(*(uint16_t *)p);
-    return p + sizeof(uint16_t); 
-}
-
-static inline uint8_t *get_uint32(uint8_t *p, uint32_t *data) {
-    *data = ntohl(*(uint32_t *)p);
-    return p + sizeof(uint32_t); 
-}
-
-pdp8_trace_t *pdp8_trace_create(struct pdp8_t *pdp8) {
+pdp8_trace_t *pdp8_trace_create(struct pdp8_t *pdp8, uint32_t buffer_size) {
     pdp8_trace_t *trc = calloc(1, sizeof(pdp8_trace_t));
     if (trc == NULL) {
         return NULL;
     }
 
-    trc->trace = malloc(INITIAL_TRACE_BUFFER_SIZE);
+    if (buffer_size != TRACE_UNLIMITED && buffer_size < MIN_BUFFER) {
+        buffer_size = MIN_BUFFER;
+    }
+
+    trc->trace = malloc(buffer_size == TRACE_UNLIMITED ? INITIAL_TRACE_BUFFER_SIZE : buffer_size);
     if (trc->trace == NULL) {
         pdp8_trace_free(trc);
         return NULL;
@@ -99,50 +92,21 @@ pdp8_trace_t *pdp8_trace_create(struct pdp8_t *pdp8) {
 
     trc->pdp8 = pdp8;
     trc->allocated = INITIAL_TRACE_BUFFER_SIZE;
+    trc->cap = buffer_size;
+    trc->first_instr = 0;
+    trc->next_instr = 0;
+    trc->core_size = pdp8->core_size;
 
-    /* must be the first record */
-    uint8_t *rec = alloc_trace_record(trc, 2);
-    if (rec) {
-        *rec++ = trc_version;
-        *rec++ = TRACE_VERSION;
-    }
-
-    rec = alloc_trace_record(trc, 1 + sizeof(uint32_t));
-    if (rec) {
-        *rec++ = trc_system_memory;
-        rec = put_uint32(rec, pdp8->core_size);
-    }
-
-    uint16_t bitfields = 0;
-    if (pdp8->link) {
-        bitfields |= (1 << treg_link);
-    }
-
-    if (pdp8->eae_mode_b) {
-        bitfields |= (1 << treg_eae_mode_b);
-    }
-
-    if (pdp8->gt) {
-        bitfields |= (1 << treg_gt);
-    }
-
-    int reg_rec_size = 1 + (treg_word_last - treg_word_first + 1) * sizeof(uint16_t);
-    rec = alloc_trace_record(trc, reg_rec_size);
-    if (rec) {
-        uint8_t *start = rec;
-        *rec++ = trc_all_registers;
-         
-        rec = put_uint16(rec, bitfields);
-        rec = put_uint16(rec, pdp8->ac);
-        rec = put_uint16(rec, pdp8->sr);
-        rec = put_uint16(rec, pdp8->mq);
-        rec = put_uint16(rec, pdp8->sc);
-        rec = put_uint16(rec, pdp8->ifr);
-        rec = put_uint16(rec, pdp8->dfr);
-        rec = put_uint16(rec, pdp8->ibr);
-
-        assert((rec - start) == reg_rec_size);
-    }
+    trc->initial_regs.ac = pdp8->ac;
+    trc->initial_regs.link = pdp8->link;
+    trc->initial_regs.eae_mode_b = pdp8->eae_mode_b;
+    trc->initial_regs.gt = pdp8->gt;
+    trc->initial_regs.sr = pdp8->sr;
+    trc->initial_regs.mq = pdp8->mq;
+    trc->initial_regs.sc = pdp8->sc;
+    trc->initial_regs.ifr = pdp8->ifr;
+    trc->initial_regs.dfr = pdp8->dfr;
+    trc->initial_regs.ibr = pdp8->ibr;
 
     return trc;
 }
@@ -160,29 +124,18 @@ void pdp8_trace_begin_instruction(pdp8_trace_t *trc) {
     }
 
     pdp8_t *pdp8 = trc->pdp8;
-    trc->regs.ac = pdp8->ac;
-    trc->regs.link = pdp8->link;
-    trc->regs.eae_mode_b = pdp8->eae_mode_b;
-    trc->regs.gt = pdp8->gt;
-    trc->regs.sr = pdp8->sr;
-    trc->regs.mq = pdp8->mq;
-    trc->regs.sc = pdp8->sc;
-    trc->regs.ifr = pdp8->ifr;
-    trc->regs.dfr = pdp8->dfr;
-    trc->regs.ibr = pdp8->ibr;
 
     /* TODO only a handful of instructions (in the EAE) are two words.
      * special case them to reduce the size of the trace.
      */
-    uint8_t *rec = alloc_trace_record(trc, 1 + 3 * sizeof(uint16_t));
+    uint32_t rec = alloc_trace_record(trc, trc_begin_instruction, 3 * sizeof(uint16_t));
 
-    if (rec) {
-        *rec++ = trc_begin_instruction;
-        rec = put_uint16(rec, pdp8->pc);
+    if (rec != UINT32_MAX) {
+        rec = put_uint16(trc, rec, pdp8->pc);
         uint12_t addr = pdp8->pc;
-        rec = put_uint16(rec, pdp8->core[pdp8->ifr | addr]);
+        rec = put_uint16(trc, rec, pdp8->core[pdp8->ifr | addr]);
         addr = INC12(addr);
-        rec = put_uint16(rec, pdp8->core[pdp8->ifr | addr]);
+        rec = put_uint16(trc, rec, pdp8->core[pdp8->ifr | addr]);
     }
 }
 
@@ -193,57 +146,22 @@ void pdp8_trace_end_instruction(pdp8_trace_t *trc) {
 
     pdp8_t *pdp8 = trc->pdp8;
 
-    /* space for type + uint16 for change field + uint16 bit regs + 
-     * ~10 word registers = 25 bytes
-     * rounded up in case more reigsters added
-     */
-    uint8_t buffer[128];
-    uint8_t *p;
-    uint16_t changed = 0;
-    uint16_t bitfields = 0;
+    uint16_t bitregs = 0;
+    if (pdp8->link) bitregs |= (1 << treg_link);
+    if (pdp8->eae_mode_b) bitregs |= (1 << treg_eae_mode_b);
+    if (pdp8->gt) bitregs |= (1 << treg_gt);
 
-    p = buffer;
+    uint32_t rec = alloc_trace_record(trc, trc_end_instruction, 8 * sizeof(uint16_t));
 
-    *p++ = trc_end_instruction;
-    uint16_t *p_changed = (uint16_t *)p;
-    p += sizeof(uint16_t);
-    uint16_t *p_bitfields = (uint16_t *)p;
-    p += sizeof(uint16_t);
-
-#define CHECK_REG16(r) \
-    if (pdp8->r != trc->regs.r) { \
-        p = put_uint16(p, pdp8-> r); \
-        changed |= (1 << treg_##r); \
-    }
-
-#define CHECK_BIT(b) \
-    if (pdp8->b != trc->regs.b) { \
-        bitfields |= (pdp8->b ? (1 << treg_##b) : 0); \
-        changed |= (1 << treg_##b); \
-    }   
-
-    CHECK_BIT(link);
-    CHECK_BIT(eae_mode_b);
-    CHECK_BIT(gt);
-    CHECK_REG16(ac);
-    CHECK_REG16(sr);
-    CHECK_REG16(mq);
-    CHECK_REG16(sc);
-    CHECK_REG16(ifr);
-    CHECK_REG16(dfr);
-    CHECK_REG16(ibr);
-
-    assert(p <= buffer + sizeof(buffer));
-
-#undef CHECK_REG16
-#undef CHECK_BIT    
-
-    *p_changed = htons(changed);
-    *p_bitfields = htons(bitfields);
-    
-    uint8_t *rec = alloc_trace_record(trc, p - buffer);
-    if (rec) {
-        memcpy(rec, buffer, p - buffer);
+    if (rec != UINT32_MAX) {
+        rec = put_uint16(trc, rec, bitregs);        /* 1 */
+        rec = put_uint16(trc, rec, pdp8->ac);       /* 2 */
+        rec = put_uint16(trc, rec, pdp8->sr);       /* 3 */
+        rec = put_uint16(trc, rec, pdp8->mq);       /* 4 */
+        rec = put_uint16(trc, rec, pdp8->sc);       /* 5 */
+        rec = put_uint16(trc, rec, pdp8->ifr);      /* 6 */
+        rec = put_uint16(trc, rec, pdp8->dfr);      /* 7 */
+        rec = put_uint16(trc, rec, pdp8->ibr);      /* 8 */
     }
 }
 
@@ -252,10 +170,7 @@ void pdp8_trace_interrupt(pdp8_trace_t *trc) {
         return;
     }
 
-    uint8_t *rec = alloc_trace_record(trc, 1);
-    if (rec) {
-        *rec = trc_interrupt;
-    }
+    alloc_trace_record(trc, trc_interrupt, 0);
 }
 
 void pdp8_trace_memory_write(pdp8_trace_t *trc, uint16_t addr, uint12_t data) {
@@ -263,11 +178,10 @@ void pdp8_trace_memory_write(pdp8_trace_t *trc, uint16_t addr, uint12_t data) {
         return;
     }
 
-    uint8_t *rec = alloc_trace_record(trc, 1 + 2 * sizeof(uint16_t));
-    if (rec) {
-        *rec++ = trc_memory_changed;
-        rec = put_uint16(rec, addr);
-        rec = put_uint16(rec, data);
+    uint32_t rec = alloc_trace_record(trc, trc_memory_changed, 2 * sizeof(uint16_t));
+    if (rec != UINT32_MAX) {
+        rec = put_uint16(trc, rec, addr);
+        rec = put_uint16(trc, rec, data);
     }
 }
 
@@ -277,8 +191,56 @@ int pdp8_trace_save(pdp8_trace_t *trc, char *fn) {
         return -1;
     }
 
-    size_t wrote = fwrite(trc->trace, 1, trc->used, fp);
-    if (wrote != trc->used) {
+    uint8_t header[1 + 4 * sizeof(uint32_t) + 8 * sizeof(uint16_t)];
+    uint8_t *p = header;
+
+    *p++ = TRACE_VERSION;
+    /* how much to read back. don't save unused space at the end of a linear trace. */
+    *(uint32_t *)p = htonl(TRACE_CIRCULAR_BUF(trc) ? trc->allocated : trc->next_instr);
+    p += sizeof(uint32_t);
+    *(uint32_t *)p = htonl(trc->first_instr);
+    p += sizeof(uint32_t);
+    *(uint32_t *)p = htonl(trc->next_instr);
+    p += sizeof(uint32_t);
+    *(uint32_t *)p = htonl(trc->core_size);
+    p += sizeof(uint32_t);
+
+    uint16_t bitregs = 0;
+    if (trc->initial_regs.link) bitregs |= (1 << treg_link);
+    if (trc->initial_regs.eae_mode_b) bitregs |= (1 << treg_eae_mode_b);
+    if (trc->initial_regs.gt) bitregs |= (1 << treg_gt);
+
+    *(uint16_t *)p = htons(bitregs);
+    p+= sizeof(uint16_t);
+    *(uint16_t *)p = htons(trc->initial_regs.ac);
+    p+= sizeof(uint16_t);
+    *(uint16_t *)p = htons(trc->initial_regs.sr);
+    p+= sizeof(uint16_t);
+    *(uint16_t *)p = htons(trc->initial_regs.mq);
+    p+= sizeof(uint16_t);
+    *(uint16_t *)p = htons(trc->initial_regs.sc);
+    p+= sizeof(uint16_t);
+    *(uint16_t *)p = htons(trc->initial_regs.ifr);
+    p+= sizeof(uint16_t);
+    *(uint16_t *)p = htons(trc->initial_regs.dfr);
+    p+= sizeof(uint16_t);
+    *(uint16_t *)p = htons(trc->initial_regs.ibr);
+    p+= sizeof(uint16_t);
+    assert(p == header + sizeof(header));
+
+    if (fwrite(header, sizeof(header), 1, fp) != 1) {
+        fclose(fp);
+        return -1;
+    }
+
+    int ok;
+    if (TRACE_CIRCULAR_BUF(trc)) {
+        ok = fwrite(trc->trace, trc->allocated, 1, fp) == 1;
+    } else {
+        ok = fwrite(trc->trace, trc->next_instr, 1, fp) == 1;
+    }
+        
+    if (!ok) {
         fclose(fp);
         return -1;
     }
@@ -292,41 +254,82 @@ pdp8_trace_t *pdp8_trace_load(char *fn) {
         return NULL;
     }
 
+    uint8_t header[1 + 4 * sizeof(uint32_t) + 8 * sizeof(uint16_t)];
+    uint8_t *p = header;
+
+    if (fread(p, sizeof(header), 1, fp) != 1) {
+        fclose(fp);
+        return NULL;
+    }
+
+    if (*p++ != TRACE_VERSION) {
+        fclose(fp);
+        return NULL;
+    }    
+
     pdp8_trace_t *trc = calloc(1, sizeof(pdp8_trace_t));
-    if (!trc) {
-        return NULL;
-    }
-
-    fseek(fp, 0L, SEEK_END);
-    size_t bytes = ftell(fp);
-    fseek(fp, 0L, SEEK_SET);
-
-    if ((trc->trace = malloc(bytes)) == NULL) {
+    if (trc == NULL) {
         fclose(fp);
-        free(trc);
+        return trc;
+    }
+
+    trc->allocated = ntohl(*(uint32_t *)p);
+    p += sizeof(uint32_t);
+    trc->first_instr = ntohl(*(uint32_t *)p);
+    p += sizeof(uint32_t);
+    trc->next_instr = ntohl(*(uint32_t *)p);
+    p += sizeof(uint32_t);
+    trc->core_size = ntohl(*(uint32_t *)p);
+    p += sizeof(uint32_t);
+
+    uint16_t bitregs;
+    bitregs = ntohs(*(uint32_t *)p);
+    p += sizeof(uint16_t);
+
+    trc->initial_regs.link = (bitregs >> treg_link) & 1;
+    trc->initial_regs.eae_mode_b = (bitregs >> treg_eae_mode_b) & 1;
+    trc->initial_regs.gt = (bitregs >> treg_gt) & 1;
+
+    trc->initial_regs.ac = ntohs(*(uint16_t *)p);
+    p += sizeof(uint16_t);
+    trc->initial_regs.sr = ntohs(*(uint16_t *)p);
+    p += sizeof(uint16_t);
+    trc->initial_regs.mq = ntohs(*(uint16_t *)p);
+    p += sizeof(uint16_t);
+    trc->initial_regs.sc = ntohs(*(uint16_t *)p);
+    p += sizeof(uint16_t);
+    trc->initial_regs.ifr = ntohs(*(uint16_t *)p);
+    p += sizeof(uint16_t);
+    trc->initial_regs.dfr = ntohs(*(uint16_t *)p);
+    p += sizeof(uint16_t);
+    trc->initial_regs.ibr = ntohs(*(uint16_t *)p);
+    p += sizeof(uint16_t);
+
+    assert(p == header + sizeof(header));
+
+    uint32_t cnt = TRACE_CIRCULAR_BUF(trc) ? trc->allocated : trc->next_instr;
+
+    int ok = 0;
+    trc->trace = malloc(cnt);
+    if (trc->trace) {
+        ok = fread(trc->trace, cnt, 1, fp) == 1;
+    }
+    fclose(fp);
+
+    if (!ok) {
+        pdp8_trace_free(trc);
         return NULL;
     }
 
-    if (fread(trc->trace, 1, bytes, fp) != bytes) {
-        fclose(fp);
-        free(trc->trace);
-        free(trc);
-        return NULL;
-    }
-
-    trc->used = bytes;
-
-    /* loaded traces cannot be appended to */
+    /* loaded traces cannot be modified */
     trc->locked = 1;
 
     return trc;
 }
 
-static uint8_t *list_all_registers(uint8_t *p, uint8_t *pend, FILE *fp, trace_reg_values_t *regs);
-static uint8_t *list_system_memory(uint8_t *p, uint8_t *pend, FILE *fp);
-static uint8_t *list_begin_instruction(uint8_t *p, uint8_t *pend, FILE *fp, trace_reg_values_t *regs);
-static uint8_t *list_end_instruction(uint8_t *p, uint8_t *pend, FILE *fp, trace_reg_values_t *regs);
-static uint8_t *list_memory_changed(uint8_t *p, uint8_t *pend, FILE *fp);
+static void list_begin_instruction(pdp8_trace_t *trc, uint32_t p, FILE *fp, trace_reg_values_t *reg);
+static void list_end_instruction(pdp8_trace_t *trc, uint32_t p, FILE *fp, trace_reg_values_t *reg);
+static void list_memory_changed(pdp8_trace_t *trc, uint32_t p, FILE *fp);
 
 int pdp8_trace_save_listing(pdp8_trace_t *trc, char *fn) {
     FILE *fp = fopen(fn, "wb");
@@ -334,48 +337,58 @@ int pdp8_trace_save_listing(pdp8_trace_t *trc, char *fn) {
         return -1;
     }
 
-    uint8_t *p = trc->trace;
-    uint8_t *pend = trc->trace + trc->used;
+    fprintf(fp, "system has %d words of core\n", (int)trc->core_size);
 
-    if (pend - p < 2 || *p++ != trc_version) {
-        fprintf(fp, "given trace is not valid (no version header)\n");
-        fclose(fp);
-        return -1;
-    }
+    uint32_t p = trc->first_instr;
+    uint32_t pend = trc->next_instr;
 
-    uint8_t version = *p++;
-    if (version > TRACE_VERSION) {
-        fprintf(fp, "given trace is not valid (version stamp is unrecognized)\n");
-        fclose(fp);
-        return -1;
-    }
-
+    trace_reg_values_t regs = trc->initial_regs;
+    
     int done = 0;
 
-    trace_reg_values_t regs;
-    memset(&regs, 0, sizeof(regs));
+    while (!done) {
+        if (p == pend) {
+            break;
+        }
 
-    while (p < pend && !done) {
-        switch (*p++) {
+        trace_type_t type = trc->trace[p];
+        p = inc_index(trc, p);
+        if (p == pend) {
+            break;
+        }
+
+        uint8_t bytes = trc->trace[p];
+        p = inc_index(trc, p);
+        if (p == pend) {
+            break;
+        }
+        
+        /* check for incomplete data */
+        int tr = 0;
+        if (TRACE_CIRCULAR_BUF(trc) && will_wrap(trc, p, bytes)) {            
+            if (p + bytes - trc->allocated > trc->next_instr) {
+                tr++;
+            }
+        } else if (p + bytes > trc->next_instr) {
+            tr++;
+        }
+        if (tr) {
+            fprintf(fp, "\ntrace truncated\n");
+            break;
+        }
+
+        switch (type) {
             case trc_out_of_memory:
                 fprintf(fp, "\ncapture ran out of memory\n");
                 done = 1;
                 break;
 
-            case trc_system_memory:
-                p = list_system_memory(p, pend, fp);
-                break;
-
-            case trc_all_registers:
-                p = list_all_registers(p, pend, fp, &regs);
-                break;
-
             case trc_begin_instruction:
-                p = list_begin_instruction(p, pend, fp, &regs);
+                list_begin_instruction(trc, p, fp, &regs);
                 break;
 
             case trc_end_instruction:
-                p = list_end_instruction(p, pend, fp, &regs);
+                list_end_instruction(trc, p, fp, &regs);
                 break;
 
             case trc_interrupt:
@@ -383,7 +396,7 @@ int pdp8_trace_save_listing(pdp8_trace_t *trc, char *fn) {
                 break;
 
             case trc_memory_changed:
-                p = list_memory_changed(p, pend, fp);
+                list_memory_changed(trc, p, fp);
                 break;
 
             default:
@@ -391,186 +404,243 @@ int pdp8_trace_save_listing(pdp8_trace_t *trc, char *fn) {
                 done = 1;
                 break;
         }
+
+        p += bytes;
+        if (TRACE_CIRCULAR_BUF(trc)) {
+            p %= trc->allocated;
+        }
     }
 
+    fclose(fp);
     return 0;
 }
 
 static const char *truncated = "\ntrace truncated\n";
 
-static uint8_t *list_all_registers(uint8_t *p, uint8_t *pend, FILE *fp, trace_reg_values_t *regs) {
-    int reg_rec_size = (treg_word_last - treg_word_first + 1) * sizeof(uint16_t);
-    if (pend - p < reg_rec_size) {
-        fprintf(fp, "%s", truncated);
-        return pend;
-    }
-
-    uint8_t *start = p;
-
-    uint16_t bitfields;
-
-    p = get_uint16(p, &bitfields);
-    p = get_uint16(p, &regs->ac);
-    p = get_uint16(p, &regs->sr);
-    p = get_uint16(p, &regs->mq);
-    p = get_uint16(p, &regs->sc);
-    p = get_uint16(p, &regs->ifr);
-    p = get_uint16(p, &regs->dfr);
-    p = get_uint16(p, &regs->ibr);
-
-    regs->link = (bitfields >> treg_link) & 01;
-    regs->eae_mode_b = (bitfields >> treg_eae_mode_b) & 01;
-    regs->gt = (bitfields >> treg_gt) & 01;
-    
-    assert((p - start) == reg_rec_size);
-    return p;
-}
-
-static uint8_t *list_system_memory(uint8_t *p, uint8_t *pend, FILE *fp) {
-    if (pend - p < sizeof(uint32_t)) {
-        fprintf(fp, "%s", truncated);
-        return pend;
-    }
-
-    uint32_t core = 0;
-    p = get_uint32(p, &core);
-    fprintf(fp, "system has %d words of core\n", (int)core);
-
-    return p;
-}
-
-static uint8_t *list_begin_instruction(uint8_t *p, uint8_t *pend, FILE *fp, trace_reg_values_t *regs) {
-    if (pend - p < 3 * sizeof(uint16_t)) {
-        fprintf(fp, "%s", truncated);
-        return pend;
-    }
-
+static void list_begin_instruction(pdp8_trace_t *trc, uint32_t p, FILE *fp, trace_reg_values_t *regs) {
     uint16_t pc;
-    p = get_uint16(p, &pc);
+    p = get_uint16(trc, p, &pc);
 
     uint16_t ops[2];
-    p = get_uint16(p, ops);
-    p = get_uint16(p, ops+1);
+    p = get_uint16(trc, p, ops);
+    p = get_uint16(trc, p, ops+1);
 
     char decoded[200];
     pdp8_disassemble(pc, ops, regs->eae_mode_b, decoded, sizeof(decoded));
     fprintf(fp, "%s\n", decoded);
-  
-    return p;
 }
 
-static uint8_t *list_end_instruction(uint8_t *p, uint8_t *pend, FILE *fp, trace_reg_values_t *regs) {
-    int tflag = 0;
-    if (pend - p < 2 * sizeof(uint16_t)) {
-        tflag = 1;
-    }
+static void list_end_instruction(pdp8_trace_t *trc, uint32_t p, FILE *fp, trace_reg_values_t *iregs) {
+    trace_reg_values_t regs;
 
-    uint16_t changed;
-    uint16_t bitfields;
+    uint16_t bitregs;
+    p = get_uint16(trc, p, &bitregs);       /* 1 */
+    p = get_uint16(trc, p, &regs.ac);       /* 2 */
+    p = get_uint16(trc, p, &regs.sr);       /* 3 */
+    p = get_uint16(trc, p, &regs.mq);       /* 4 */
+    p = get_uint16(trc, p, &regs.sc);       /* 5 */
+    p = get_uint16(trc, p, &regs.ifr);      /* 6 */
+    p = get_uint16(trc, p, &regs.dfr);      /* 7 */
+    p = get_uint16(trc, p, &regs.ibr);      /* 8 */
 
-    if (!tflag) {
-        p = get_uint16(p, &changed);
-        p = get_uint16(p, &bitfields);
-
-        int count = 0;
-
-        for (int i = 0; i < 16; i++) {
-            if (changed & (1 << i)) {
-                count++;
-            }
-        }
-        if (pend - p < count * sizeof(uint16_t)) {
-            tflag = 1;
-        }
-    }
-
-    if (tflag) {
-        fprintf(fp, "%s", truncated);
-        return pend;
-    }
-
-#define RESTORE_BIT(b) \
-    if (changed & (1 << treg_##b)) { \
-        regs->b = (bitfields >> treg_##b) & 01; \
-    }
-
-#define RESTORE_REG16(r) \
-    if (changed & (1 << treg_##r)) { \
-        p = get_uint16(p, &regs->r); \
-    }
-
-    RESTORE_BIT(link);
-    RESTORE_BIT(eae_mode_b);
-    RESTORE_BIT(gt);
-
-    /* these MUST be in the same order as saved */
-    RESTORE_REG16(ac);
-    RESTORE_REG16(sr);
-    RESTORE_REG16(mq);
-    RESTORE_REG16(sc);
-    RESTORE_REG16(ifr);
-    RESTORE_REG16(dfr);
-    RESTORE_REG16(ibr);
-
-#undef RESTORE_BIT
-#undef RESTORE_REG16
-
-    fprintf(fp, "AC %04o%c ", regs->ac, (changed & (1 << treg_ac)) ? '*' : ' ');
-    fprintf(fp, "SR %04o%c ", regs->sr, (changed & (1 << treg_sr)) ? '*' : ' ');
-    fprintf(fp, "MQ %04o%c ", regs->mq, (changed & (1 << treg_mq)) ? '*' : ' ');
-    fprintf(fp, "SC %04o%c ", regs->sc, (changed & (1 << treg_sc)) ? '*' : ' ');
-    fprintf(fp, "IF %1o%c ", regs->ifr >> 12, (changed & (1 << treg_ifr)) ? '*' : ' ');
-    fprintf(fp, "DF %1o%c ", regs->dfr >> 12, (changed & (1 << treg_dfr)) ? '*' : ' ');
-    fprintf(fp, "IB %1o%c ", regs->ibr >> 12, (changed & (1 << treg_ibr)) ? '*' : ' ');
-    fprintf(fp, "LINK %1o%c ", regs->link, (changed & (1 << treg_link)) ? '*' : ' ');
-    fprintf(fp, "EAEB %1o%c ", regs->eae_mode_b, (changed & (1 << treg_eae_mode_b)) ? '*' : ' ');
-    fprintf(fp, "GT %1o%c ", regs->gt, (changed & (1 << treg_gt)) ? '*' : ' ');
+    regs.link = (bitregs >> treg_link) & 1;
+    regs.eae_mode_b = (bitregs >> treg_eae_mode_b) & 1;
+    regs.gt = (bitregs >> treg_gt) & 1;
+ 
+    fprintf(fp, "AC %04o%c ", regs.ac, (regs.ac != iregs->ac) ? '*' : ' ');
+    fprintf(fp, "SR %04o%c ", regs.sr, (regs.sr != iregs->sr) ? '*' : ' ');
+    fprintf(fp, "MQ %04o%c ", regs.mq, (regs.mq != iregs->mq) ? '*' : ' ');
+    fprintf(fp, "SC %04o%c ", regs.sc, (regs.sc != iregs->sc) ? '*' : ' ');
+    fprintf(fp, "IF %1o%c ", regs.ifr >> 12, (regs.ifr != iregs->ifr) ? '*' : ' ');
+    fprintf(fp, "DF %1o%c ", regs.dfr >> 12, (regs.dfr != iregs->dfr) ? '*' : ' ');
+    fprintf(fp, "IB %1o%c ", regs.ibr >> 12, (regs.ibr != iregs->ibr) ? '*' : ' ');
+    fprintf(fp, "LINK %1o%c ", regs.link, (regs.link != iregs->link) ? '*' : ' ');
+    fprintf(fp, "EAEB %1o%c ", regs.eae_mode_b, (regs.eae_mode_b != iregs->eae_mode_b) ? '*' : ' ');
+    fprintf(fp, "GT %1o%c ", regs.gt, (regs.gt != iregs->gt) ? '*' : ' ');
     
     fprintf(fp, "\n");
 
-    return p;
+    *iregs = regs;
 }
 
-static uint8_t *list_memory_changed(uint8_t *p, uint8_t *pend, FILE *fp) {
-    if (pend - p < 2 * sizeof(uint16_t)) {
-        fprintf(fp, "%s", truncated);
-        return pend;
-    }    
-
+static void list_memory_changed(pdp8_trace_t *trc, uint32_t p, FILE *fp) {
     uint16_t addr;
     uint16_t data;
 
-    p = get_uint16(p, &addr);
-    p = get_uint16(p, &data);
+    p = get_uint16(trc, p, &addr);
+    p = get_uint16(trc, p, &data);
 
     fprintf(fp, "core write [%05o] <= %05o\n", addr, data);
-    return p;
 }
 
-static uint8_t *alloc_trace_record(pdp8_trace_t *trc, int bytes) {
-    if (!TRACE_ENABLED(trc)) {
-        return NULL;
+static int circular_overflow(pdp8_trace_t *trc, int bytes) {
+    if (!will_wrap(trc, trc->next_instr, bytes)) {
+        return trc->next_instr + bytes >= trc->first_instr;
     }
-    
-    /* always guarantee there's an extra byte if we need to 
-     * store an out of memory record.
+
+    return trc->next_instr + bytes - trc->allocated >= trc->first_instr;
+}
+
+static void remove_first_event(pdp8_trace_t *trc) {    
+    uint32_t p = trc->first_instr;
+    uint8_t type;
+    uint8_t cnt;
+    p = get_uint8(trc, p, &type);
+    p = get_uint8(trc, p, &cnt);
+
+    /* if we're deleting an end of instruction event, we're losing
+     * register data, so we need to update the initial registers.
      */
-    if (trc->used + bytes + 1 > trc->allocated) {
-        uint8_t *realloced = realloc(trc->trace, 2 * trc->allocated);
-        if (realloced == NULL) {
-            assert(trc->used < trc->allocated);
-            trc->trace[trc->used++] = trc_out_of_memory;
-            trc->out_of_memory = 1;
-            return NULL;            
+    if (type == trc_end_instruction) {
+        uint16_t bitregs;
+        p = get_uint16(trc, p, &bitregs);       
+        p = get_uint16(trc, p, &trc->initial_regs.ac);       
+        p = get_uint16(trc, p, &trc->initial_regs.sr);       
+        p = get_uint16(trc, p, &trc->initial_regs.mq);       
+        p = get_uint16(trc, p, &trc->initial_regs.sc);       
+        p = get_uint16(trc, p, &trc->initial_regs.ifr);      
+        p = get_uint16(trc, p, &trc->initial_regs.dfr);      
+        p = get_uint16(trc, p, &trc->initial_regs.ibr);      
+    
+        trc->initial_regs.link = (bitregs >> treg_link) & 1;
+        trc->initial_regs.eae_mode_b = (bitregs >> treg_eae_mode_b) & 1;
+        trc->initial_regs.gt = (bitregs >> treg_gt) & 1;                
+    }
+
+    p += cnt;
+    if (TRACE_CIRCULAR_BUF(trc)) {
+        p %= trc->allocated;
+    }
+
+    trc->first_instr = p;
+}
+
+static uint32_t alloc_trace_record(pdp8_trace_t *trc, trace_type_t type, int bytes) {
+    if (!TRACE_ENABLED(trc)) {
+        return UINT32_MAX;
+    }
+ 
+    if (TRACE_CIRCULAR_BUF(trc)) {
+        while (circular_overflow(trc, bytes + 2)) {
+            remove_first_event(trc);
         }
 
-        trc->trace = realloced;
-        trc->allocated *= 2;
+        uint32_t p = trc->next_instr;
+        trc->next_instr = (trc->next_instr + bytes + 2) % trc->allocated;
+
+        p = put_uint8(trc, p, type);
+        p = put_uint8(trc, p, bytes);
+
+        return p;
+    } else {
+        /* always guarantee we have two bytes left over for an out of
+         * memory event
+         */
+        if (trc->next_instr + bytes + 4 > trc->allocated) {
+            uint32_t new_alloc = 2 * trc->allocated;
+            uint8_t *realloced = realloc(trc->trace, new_alloc);
+            if (realloced == NULL) {
+                assert(trc->next_instr <= trc->allocated - 2);
+                trc->trace[trc->next_instr++] = trc_out_of_memory;
+                trc->trace[trc->next_instr++] = 0;
+                trc->out_of_memory = 1;
+                return UINT32_MAX;            
+            }
+
+            trc->trace = realloced;
+            trc->allocated  = new_alloc;
+        }
+
+        /* in an unlimited buffer, we should never have a record so large that one realloc isn't enough */
+        assert(trc->next_instr + bytes + 4 <= trc->allocated);
+
+        uint32_t p = trc->next_instr;
+
+        p = put_uint8(trc, p, type);
+        p = put_uint8(trc, p, bytes);
+        trc->next_instr = p + bytes;
+
+        return p;
+    }
+}
+
+static int will_wrap(pdp8_trace_t *trc, uint32_t index, size_t bytes) {
+    if (!TRACE_CIRCULAR_BUF(trc)) {
+        return 0;
     }
 
-    /* we should never have a record so large that one realloc isn't enough */
-    assert(trc->used + bytes + 1 <= trc->allocated);
+    return index + bytes < trc->allocated;
+}
 
-    trc->used += bytes;
-    return trc->trace + trc->used - bytes;
+static inline uint32_t inc_index(pdp8_trace_t *trc, uint32_t index) {
+    index++;
+    if (TRACE_CIRCULAR_BUF(trc)) {
+        return index % trc->allocated;
+    }
+    return index;
+}
+
+static inline uint32_t put_uint8(pdp8_trace_t *trc, uint32_t index, uint8_t data) {
+    trc->trace[index] = data;
+    return inc_index(trc, index);
+}
+
+static inline uint32_t get_uint8(pdp8_trace_t *trc, uint32_t index, uint8_t *data) {
+    *data = trc->trace[index];
+    return inc_index(trc, index);
+}
+
+static inline uint32_t put_uint16(pdp8_trace_t *trc, uint32_t index, uint16_t data) {
+    if (!will_wrap(trc, index, sizeof(uint16_t))) {
+        *(uint16_t*)(trc->trace + index) = htons(data);
+        return index + sizeof(uint16_t);
+    }
+    index = put_uint8(trc, index, (data >> 8) & 0377);
+    index = put_uint8(trc, index, data & 0377);
+    return index;
+}
+
+static inline uint32_t put_uint32(pdp8_trace_t *trc, uint32_t index, uint32_t data) {
+    if (!will_wrap(trc, index, sizeof(uint32_t))) {
+        *(uint32_t*)(trc->trace + index) = htonl(data);
+        return index + sizeof(uint32_t);
+    }
+    index = put_uint8(trc, index, (data >> 24) & 0377);
+    index = put_uint8(trc, index, (data >> 16) & 0377);
+    index = put_uint8(trc, index, (data >> 8) & 0377);
+    index = put_uint8(trc, index, data & 0377);
+
+    return index;
+}
+
+static inline uint32_t get_uint16(pdp8_trace_t *trc, uint32_t index, uint16_t *data) {
+    if (!will_wrap(trc, index, sizeof(uint16_t))) {
+        *data = ntohs(*(uint16_t*)(trc->trace + index));
+        return index + sizeof(uint16_t);
+    }
+
+    uint8_t t[2];
+    index = get_uint8(trc, index, t+0);
+    index = get_uint8(trc, index, t+1);
+
+    *data = (t[0] << 8) | t[1];
+
+    return index;    
+}
+
+static inline uint32_t get_uint32(pdp8_trace_t *trc, uint32_t index, uint32_t *data) {
+    if (!will_wrap(trc, index, sizeof(uint32_t))) {
+        *data = htonl(*(uint32_t*)(trc->trace + index));
+        return index + sizeof(uint32_t);
+    }
+
+    uint8_t t[4];
+    index = get_uint8(trc, index, t+0);
+    index = get_uint8(trc, index, t+1);
+    index = get_uint8(trc, index, t+2);
+    index = get_uint8(trc, index, t+3);
+    
+    *data = (t[0] << 24) | (t[1] << 16) | (t[2] << 8) | t[3];
+
+    return index;    
 }

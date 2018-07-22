@@ -5,7 +5,8 @@
 
 typedef struct pdp8_trace_t pdp8_trace_t;
 
-extern pdp8_trace_t *pdp8_trace_create(struct pdp8_t *pdp8);
+#define TRACE_UNLIMITED 0
+extern pdp8_trace_t *pdp8_trace_create(struct pdp8_t *pdp8, uint32_t buffer_size);
 extern void pdp8_trace_free(pdp8_trace_t *trc);
 extern void pdp8_trace_begin_instruction(pdp8_trace_t *trc);
 extern void pdp8_trace_end_instruction(pdp8_trace_t *trc);

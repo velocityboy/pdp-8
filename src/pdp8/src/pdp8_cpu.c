@@ -189,7 +189,7 @@ int pdp8_start_tracing(pdp8_t *pdp8, char *tracefile) {
         return PDP8_ERR_BUSY;
     }
 
-    pdp8->trace = pdp8_trace_create(pdp8);
+    pdp8->trace = pdp8_trace_create(pdp8, TRACE_UNLIMITED);
     pdp8->tracefile = strdup(tracefile);
 
     return 0;

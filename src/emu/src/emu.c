@@ -252,6 +252,9 @@ static void unassemble(char *tail) {
         }        
         start = (start + n) & 07777;
         printf("%s\n", line);
+        if (start >= end) {
+            break;
+        }
     }
 }
 
@@ -259,7 +262,7 @@ static void registers(char *tail) {
     printf("AC %04o PC %04o SR %04o LINK %o", pdp8->ac, pdp8->pc, pdp8->sr, pdp8->link);
     if (pdp8->option_eae) {
         printf(" MQ %04o SC %04o", pdp8->mq, pdp8->sc);
-    }
+    }    
     printf(" %s\n", pdp8->run ? "RUN" : "STOP");
     char line[200];
     pdp8_disassemble(pdp8->pc, &pdp8->core[pdp8->pc], pdp8->eae_mode_b, line, sizeof(line));
@@ -268,6 +271,7 @@ static void registers(char *tail) {
 
 static void step(char *tail) {
     pdp8_step(pdp8);
+    registers("");
 }
 
 static void set(char *tail) {
@@ -276,11 +280,12 @@ static void set(char *tail) {
     int consumed;
     if (sscanf(tail, "%20s %o %n", regname, &value, &consumed) != 2 || consumed != strlen(tail)) {
         printf("set: invalid parameters\n");
+        return;
     }
 
     pdp8_reg_t reg = pdp8_reg_from_string(regname);
     if (reg < 0) {
-        printf("%s is not a value register\n", regname);
+        printf("%s is not a valid register\n", regname);
         return;
     }
 

@@ -125,10 +125,6 @@ static uint8_t filter_input(uint8_t ch) {
         return toupper(ch);
     }
 
-    if (ch == '\n') {
-        return '\r';
-    } 
-
     return ch;
 }
 
