@@ -6,7 +6,7 @@
 #include "pdp8/defines.h"
 
 /*
- * This is not every model of the PDP-8, just the models which have architectural 
+ * This is not every model of the PDP-8, just the models which have architectural
  * differences. The LINC-8 is identical to the straight eight, and the PDP-8/F and
  * PDP-8/M contain the same CPU as the PDP-8/E.
  */
@@ -19,7 +19,7 @@ typedef enum {
     PDP8_A
 } pdp8_model_t;
 
-/* The behavior of coming left and right rotates in the same microinstruction 
+/* The behavior of coming left and right rotates in the same microinstruction
  * varied a lot between models.
  */
 typedef enum {
@@ -35,7 +35,7 @@ typedef enum {
     PDP8_RTRL_NEXT_ADDR,        /* loads the next address */
 } pdp8_rtr_rtl_t;
 
-/* behavior quirks/new features per CPU model 
+/* behavior quirks/new features per CPU model
  */
 #define PDP8_IAC_ROTS_SUPPORTED   00000001 /* group 1 rotation + IAC is supported */
 #define PDP8_IOT0_FULL_INTR_SET   00000002 /* On early models, only ION and IOF are supported in IOT 0 */
@@ -72,6 +72,17 @@ struct pdp8_device_t {
 };
 
 /*
+ * Breakpoints
+ */
+#define PDP8_MAX_BREAKPOINTS 16
+
+typedef struct pdp8_breakpoint_t {
+    int used;
+    int enabled;
+    uint16_t paddr;
+} pdp8_breakpoint_t;
+
+/*
  * Why the machine halted
  */
 typedef enum pdp8_halt_reason_t pdp8_halt_reason_t;
@@ -85,9 +96,10 @@ enum pdp8_halt_reason_t {
     PDP8_HALT_CAF_HANG,
     PDP8_HALT_FRONT_PANEL,
     PDP8_HALT_DEVICE_REQUEST,
+    PDP8_HALT_BREAKPOINT,
 };
 
-/* 
+/*
  * Returned error codes (always < 0)
  */
 #define PDP8_ERR_INVALID_ARG (-1)
@@ -97,7 +109,7 @@ enum pdp8_halt_reason_t {
 #define PDP8_ERR_FILEIO (-5)
 
 /*
- * PDP8 emulator state 
+ * PDP8 emulator state
  */
 struct pdp8_t {
     uint12_t core[PDP8_MAX_CORE_WORDS];
@@ -115,9 +127,9 @@ struct pdp8_t {
     uint12_t mq;
     uint12_t sc;
 
-    /* KM8-E registers if there is more than 4K installed 
+    /* KM8-E registers if there is more than 4K installed
      * All field registers are stored shifted by 12 so they can just be or'ed with addresses
-     * We preallocate max memory so it's always safe to read, and we guard writes based on 
+     * We preallocate max memory so it's always safe to read, and we guard writes based on
      * core_size.
      */
     uint16_t ifr;           /* field for instruction fetches */
@@ -147,10 +159,16 @@ struct pdp8_t {
     struct scheduler_t *scheduler;
 
     /*
-     * Trace facility 
+     * Trace facility
      */
     struct pdp8_trace_t *trace;
     char *tracefile;
+
+    /*
+     * Breakpoints
+     */
+    unsigned breakpoint_flags;
+    pdp8_breakpoint_t breakpoints[PDP8_MAX_BREAKPOINTS];
 
     /*
      * Logging
@@ -167,6 +185,10 @@ static inline int pdp8_interrupts_enabled(pdp8_t *pdp8) {
     return pdp8->intr_enable_mask == PDP8_INTR_ION;
 }
 
+/* flags for breakpoint_mask */
+#define PDP8_BPT_ENABLED         00001   /* there are enabled breakpoints */
+#define PDP8_BPT_MASKED          00002   /* breakpoints masked for one cycle */
+
 extern void pdp8_write_if_safe(pdp8_t *pdp8, uint16_t addr, uint12_t value);
 
 extern pdp8_t *pdp8_create();
@@ -175,8 +197,8 @@ extern void pdp8_free(pdp8_t *pdp8);
 /* default is PDP8_E */
 extern int pdp8_set_model(pdp8_t *pdp8, pdp8_model_t model);
 
-/* set the amount of memory. existing contents will be preserved (expect for the case where 
- * it shrinks), but dangerous if things are already running! 
+/* set the amount of memory. existing contents will be preserved (expect for the case where
+ * it shrinks), but dangerous if things are already running!
  * memory is expressed in the number of 4k fields, 1 to 8.
  */
 extern int pdp8_set_mex_fields(pdp8_t *pdp8, int fields);
@@ -201,6 +223,11 @@ extern void pdp8_drain_scheduler(pdp8_t *pdp8);
 extern int pdp8_start_tracing(pdp8_t *pdp8, char *tracefile, uint32_t max_size);
 extern int pdp8_stop_tracing(pdp8_t *pdp8);
 extern int pdp8_make_trace_listing(pdp8_t *pdp8, char *tracefile, char *listfile);
+
+/* breakpoints */
+extern int pdp8_set_breakpoint(pdp8_t *pdp8, uint16_t paddr);
+extern int pdp8_enable_breakpoint(pdp8_t *pdp8, int bkpt, int enable);
+extern int pdp8_remove_breakpoint(pdp8_t *pdp8, int bkpt);
 
 /* utilities */
 extern int pdp8_disassemble(uint16_t addr, uint12_t *op, int eae_mode_b, char *decoded, int decoded_size);

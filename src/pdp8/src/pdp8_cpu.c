@@ -73,7 +73,7 @@ static pdp8_model_flags_t models[] = {
         PDP8_BSW_SUPPORTED |
         PDP8_SCL_SUPPORTED |
         PDP8_EAE_HAS_MODE_B,
-    },    
+    },
 };
 
 static int model_count = sizeof(models) / sizeof(models[0]);
@@ -129,7 +129,7 @@ int pdp8_set_model(pdp8_t *pdp8, pdp8_model_t model) {
     return found ? 0 : PDP8_ERR_INVALID_ARG;
 }
 
-/* set available memory 
+/* set available memory
  */
 int pdp8_set_mex_fields(pdp8_t *pdp8, int fields) {
     if (fields < 1 || fields > PDP8_MAX_FIELDS) {
@@ -225,10 +225,72 @@ int pdp8_make_trace_listing(pdp8_t *pdp8, char *tracefile, char *listfile) {
 
     if (pdp8_trace_save_listing(trace, listfile) < 0) {
         pdp8_trace_free(trace);
-        return PDP8_ERR_FILEIO;        
+        return PDP8_ERR_FILEIO;
     }
 
     pdp8_trace_free(trace);
+    return 0;
+}
+
+int pdp8_set_breakpoint(pdp8_t *pdp8, uint16_t paddr) {
+    for (int i = 0; i < PDP8_MAX_BREAKPOINTS; i++) {
+        pdp8_breakpoint_t *bpt = &pdp8->breakpoints[i];
+        if (!bpt->used) {
+            bpt->used = 1;
+            bpt->enabled = 1;
+            bpt->paddr = paddr;
+            pdp8->breakpoint_flags |= PDP8_BPT_ENABLED;
+            return i;
+        }
+    }
+    return PDP8_ERR_MEMORY;
+}
+
+int pdp8_enable_breakpoint(pdp8_t *pdp8, int bkpt, int enable) {
+    if (bkpt < 0 || bkpt >= PDP8_MAX_BREAKPOINTS) {
+        return PDP8_ERR_INVALID_ARG;
+    }
+
+    pdp8_breakpoint_t *bpt = &pdp8->breakpoints[bkpt];
+    if (!bpt->used) {
+        return PDP8_ERR_INVALID_ARG;
+    }
+
+    bpt->enabled = enable;
+
+    pdp8->breakpoint_flags &= ~PDP8_BPT_ENABLED;
+    for (int i = 0; i < PDP8_MAX_BREAKPOINTS; i++) {
+        bpt = &pdp8->breakpoints[i];
+        if (bpt->used && bpt->enabled) {
+            pdp8->breakpoint_flags |= PDP8_BPT_ENABLED;
+            break;
+        }
+    }
+
+    return 0;
+}
+
+int pdp8_remove_breakpoint(pdp8_t *pdp8, int bkpt) {
+    if (bkpt < 0 || bkpt >= PDP8_MAX_BREAKPOINTS) {
+        return PDP8_ERR_INVALID_ARG;
+    }
+
+    pdp8_breakpoint_t *bpt = &pdp8->breakpoints[bkpt];
+    if (!bpt->used) {
+        return PDP8_ERR_INVALID_ARG;
+    }
+
+    bpt->used = 0;
+
+    pdp8->breakpoint_flags &= ~PDP8_BPT_ENABLED;
+    for (int i = 0; i < PDP8_MAX_BREAKPOINTS; i++) {
+        bpt = &pdp8->breakpoints[i];
+        if (bpt->used && bpt->enabled) {
+            pdp8->breakpoint_flags |= PDP8_BPT_ENABLED;
+            break;
+        }
+    }
+
     return 0;
 }
 
@@ -266,7 +328,7 @@ void pdp8_step(pdp8_t *pdp8) {
     /* first, handle pending interrupts */
     if (pdp8_interrupts_enabled(pdp8) && pdp8->intr_mask) {
         pdp8->intr_enable_mask &= ~PDP8_INTR_ION;
-        pdp8->sf = 
+        pdp8->sf =
             ((pdp8->dfr >> 12) & 007) |
             ((pdp8->ifr >>  9) & 070);
         pdp8->dfr = 0;
@@ -280,6 +342,21 @@ void pdp8_step(pdp8_t *pdp8) {
 
     /* then, update any pending interrupt state */
     pdp8->intr_enable_mask &= ~PDP8_INTR_ION_PENDING;
+
+    /* hit any breakpoints */
+    if (pdp8->breakpoint_flags == PDP8_BPT_ENABLED) {
+        uint16_t paddr = pdp8->ifr | pdp8->pc;
+        for (int i = 0; i < PDP8_MAX_BREAKPOINTS; i++) {
+            const pdp8_breakpoint_t *bpt = &pdp8->breakpoints[i];
+            if (bpt->used && bpt->enabled && bpt->paddr == paddr) {
+                pdp8->run = 0;
+                pdp8->halt_reason = PDP8_HALT_BREAKPOINT;
+                pdp8->breakpoint_flags |= PDP8_BPT_MASKED;
+                return;
+            }
+        }
+    }
+    pdp8->breakpoint_flags &= ~PDP8_BPT_MASKED;
 
     if (pdp8->trace) {
         pdp8_trace_begin_instruction(pdp8->trace);
@@ -301,7 +378,7 @@ void pdp8_step(pdp8_t *pdp8) {
             pdp8->ac &= pdp8->core[ea];
             break;
 
-        case PDP8_OP_TAD: 
+        case PDP8_OP_TAD:
             ea = effective_address(opword, page, pdp8);
             sum = (pdp8->link << 12) + pdp8->ac + pdp8->core[ea];
             pdp8->ac = sum & 07777;
@@ -370,7 +447,7 @@ void pdp8_step(pdp8_t *pdp8) {
 }
 
 /*
- * Alloc interrupt state bits 
+ * Alloc interrupt state bits
  */
 int pdp8_alloc_intr_bits(pdp8_t *pdp8, int bits) {
     int maxbits = sizeof(pdp8->intr_mask) * 8;
@@ -382,7 +459,7 @@ int pdp8_alloc_intr_bits(pdp8_t *pdp8, int bits) {
     return bit0;
 }
 
-/* 
+/*
  * Schedule a callback in 'n' instructions
  */
 void pdp8_schedule(pdp8_t *pdp8, int n, void (*callback)(void *), void *ctx) {
@@ -396,7 +473,7 @@ void pdp8_unschedule(pdp8_t *pdp8, void (*callback)(void *), void *ctx) {
     scheduler_delete(pdp8->scheduler, callback, ctx);
 }
 
-/* 
+/*
  * For testing, it's useful to be able to skip directly to queued
  * events.
  */
@@ -412,20 +489,20 @@ void pdp8_drain_scheduler(pdp8_t *pdp8) {
 }
 
 /*
- * Compute the effective address for a memory operation, taking 
+ * Compute the effective address for a memory operation, taking
  * indirection and PC relative addressing into account.
  */
 static uint16_t effective_address(uint12_t op, uint12_t page, pdp8_t *pdp8) {
     /* low 7 bits come from op encoding */
     uint16_t addr = PDP8_M_OFFS(op);
-  
+
     /* bit 4, if set, means in same page as PC */
     if (PDP8_M_ZERO(op)) {
         addr |= page;
     }
 
     addr |= pdp8->ifr;
-  
+
     /* if addressing is direct, operand is taken using IF */
     /* if indirect, indirect address is from IF and operand from DF */
 
@@ -442,9 +519,9 @@ static uint16_t effective_address(uint12_t op, uint12_t page, pdp8_t *pdp8) {
             pdp8_write_if_safe(pdp8, addr, ea);
         }
 
-        addr = ea | pdp8->dfr;        
-    } 
-  
+        addr = ea | pdp8->dfr;
+    }
+
     return addr;
 }
 
@@ -477,36 +554,36 @@ static void group_1(uint12_t op, pdp8_t *pdp8) {
     /* CLA, CLL, CMA, CLL are all in event slot 1, but STL is CLL + CML, so
      * the clears must apply first.
      */
-    if ((op & PDP8_OPR_CLA) != 0) { 
-        pdp8->ac = 0; 
-    }
-    
-    if ((op & PDP8_OPR_GRP1_CLL) != 0) {
-         pdp8->link = 0; 
-    }
- 
-    if ((op & PDP8_OPR_GRP1_CMA) != 0) { 
-        pdp8->ac ^= 07777; 
+    if ((op & PDP8_OPR_CLA) != 0) {
+        pdp8->ac = 0;
     }
 
-    if ((op & PDP8_OPR_GRP1_CML) != 0) { 
-        pdp8->link = ~pdp8->link; 
+    if ((op & PDP8_OPR_GRP1_CLL) != 0) {
+         pdp8->link = 0;
     }
- 
-    /* NOTE model specific - on the 8/I and later, IAC happens before the shifts; in 
+
+    if ((op & PDP8_OPR_GRP1_CMA) != 0) {
+        pdp8->ac ^= 07777;
+    }
+
+    if ((op & PDP8_OPR_GRP1_CML) != 0) {
+        pdp8->link = ~pdp8->link;
+    }
+
+    /* NOTE model specific - on the 8/I and later, IAC happens before the shifts; in
      * earlier models, they happened at the same time.
      */
-    if ((op & PDP8_OPR_GRP1_IAC) != 0) { 
-        pdp8->ac = (pdp8->ac + 1) & MASK12; 
+    if ((op & PDP8_OPR_GRP1_IAC) != 0) {
+        pdp8->ac = (pdp8->ac + 1) & MASK12;
     }
- 
+
     uint12_t shift = op & (PDP8_OPR_GRP1_RAL | PDP8_OPR_GRP1_RAR);
- 
+
     int by = ((op & PDP8_OPR_GRP1_RTWO) != 0) ? 2 : 1;
     if (shift == 0) {
         /* model specific - on 8/E and later, the double-shift bit by itself
          * swaps the low and high 6 bits of AC
-         */       
+         */
         if ((pdp8->flags.flags & PDP8_BSW_SUPPORTED) != 0 && (op & PDP8_OPR_GRP1_RTWO) != 0) {
             pdp8->ac =
                 ((pdp8->ac & 077600) >> 6) | ((pdp8->ac & 000177) << 6);
@@ -520,12 +597,12 @@ static void group_1(uint12_t op, pdp8_t *pdp8) {
         }
     } else if (shift == PDP8_OPR_GRP1_RAR) {
         while (by--) {
-            uint16_t l = pdp8->ac & 01;        
+            uint16_t l = pdp8->ac & 01;
             pdp8->ac >>= 1;
             pdp8->ac |= (pdp8->link << 11);
             pdp8->link = l;
         }
-    }    
+    }
 }
 
 /*
@@ -533,67 +610,67 @@ static void group_1(uint12_t op, pdp8_t *pdp8) {
  */
 static void group_2_and(uint12_t op, pdp8_t *pdp8) {
     int skip = 1;
-    
+
     if ((op & PDP8_OPR_GRP2_AND_SPA) != 0) {
         skip &= ((pdp8->ac & BIT0) != BIT0);
     }
-    
+
     if ((op & PDP8_OPR_GRP2_AND_SNA) != 0) {
         skip &= pdp8->ac != 0;
     }
-    
+
     if ((op & PDP8_OPR_GRP2_AND_SZL) != 0) {
         skip &= pdp8->link == 0;
     }
-    
+
     if (skip) {
         pdp8->pc = (pdp8->pc + 1) & MASK12;
     }
-    
+
     /* important: CLA happens *after* tests. */
     if ((op & PDP8_OPR_CLA) != 0) {
-        pdp8->ac = 0;      
+        pdp8->ac = 0;
     }
-    
+
     if ((op & PDP8_OPR_GRP2_HLT) != 0) {
         pdp8->halt_reason = PDP8_HALT_HLT_INSTRUCTION;
         pdp8->run = 0;
     }
-    
+
     if ((op & PDP8_OPR_GRP2_OSR) != 0) {
         pdp8->ac |= pdp8->sr;
-    }    
+    }
 }
 
 static void group_2_or(uint12_t op, pdp8_t *pdp8) {
     int skip = 0;
-    
+
     if ((op & PDP8_OPR_GRP2_OR_SMA) != 0) {
         skip |= ((pdp8->ac & BIT0) == BIT0);
     }
-    
+
     if ((op & PDP8_OPR_GRP2_OR_SZA) != 0) {
         skip |= pdp8->ac == 0;
     }
-    
+
     if ((op & PDP8_OPR_GRP2_OR_SNL) != 0) {
         skip |= pdp8->link != 0;
     }
-    
+
     if (skip) {
         pdp8->pc = (pdp8->pc + 1) & MASK12;
     }
-    
+
     /* important: CLA happens *after* tests. */
     if ((op & PDP8_OPR_CLA) != 0) {
-        pdp8->ac = 0;      
+        pdp8->ac = 0;
     }
-    
+
     if ((op & PDP8_OPR_GRP2_HLT) != 0) {
         pdp8->halt_reason = PDP8_HALT_HLT_INSTRUCTION;
         pdp8->run = 0;
     }
-    
+
     if ((op & PDP8_OPR_GRP2_OSR) != 0) {
         pdp8->ac |= pdp8->sr;
     }
@@ -622,19 +699,19 @@ static void cpu_iots(uint12_t op, pdp8_t *pdp8) {
                 pdp8->intr_enable_mask |= PDP8_INTR_ION | PDP8_INTR_ION_PENDING;
             }
             break;
-        
+
         case PDP8_IOF:
             pdp8->intr_enable_mask &= ~PDP8_INTR_ION;
             break;
 
         case PDP8_SRQ:
             if (pdp8->intr_mask) {
-                pdp8->pc = INC12(pdp8->pc);                
+                pdp8->pc = INC12(pdp8->pc);
             }
             break;
 
         case PDP8_GTF:
-            pdp8->ac = 
+            pdp8->ac =
                 (pdp8->link ? BIT0 : 0)  |
                 (pdp8->gt ? BIT1 : 0) |
                 (pdp8->intr_mask ? BIT2 : 0) |
@@ -655,19 +732,17 @@ static void cpu_iots(uint12_t op, pdp8_t *pdp8) {
              * flag can only ever be set by that option, so no need to check.
              */
             if (pdp8->gt) {
-                pdp8->pc = INC12(pdp8->pc);                
+                pdp8->pc = INC12(pdp8->pc);
             }
             break;
 
         case PDP8_CAF: {
             for (pdp8_device_t *dev = pdp8->devices; dev; dev = dev->next) {
                 dev->reset(dev);
-            } 
+            }
             pdp8->link = 0;
             pdp8->ac = 0;
             break;
-        }                        
+        }
     }
 }
-
-

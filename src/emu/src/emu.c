@@ -40,14 +40,16 @@ static void device(char *);
 static void media(char *);
 static void trace(char *);
 static void logger(char *);
+static void breakpoint(char *);
 
-static int dev_by_name(char *p, int *slot);    
+static int dev_by_name(char *p, int *slot);
 static int octal(char **);
 static char *trim(char *str);
 static int parse(char *str, char **tokens, int max_tok);
-    
+
 static command_t commands[] = {
     { "bootprom",   "bp", "xxx load bootstrap from prom address xxx", &bootprom },
+    { "breakpoint", "b",  "set paddr | clear index | enable index | disable index | list", &breakpoint},
     { "deposit",    "d",  "xxxx dd [dd ...]", &deposit },
     { "dev",        "de", "device settings value", &device },
     { "devlist",    "dl", "show installed devices", &devlist },
@@ -248,8 +250,8 @@ static void unassemble(char *tail) {
         char line[200];
         int n = pdp8_disassemble(start, &pdp8->core[start], pdp8->eae_mode_b, line, sizeof(line));
         if (n <= 0) {
-            break;            
-        }        
+            break;
+        }
         start = (start + n) & 07777;
         printf("%s\n", line);
         if (start >= end) {
@@ -262,7 +264,7 @@ static void registers(char *tail) {
     printf("AC %04o PC %04o SR %04o LINK %o", pdp8->ac, pdp8->pc, pdp8->sr, pdp8->link);
     if (pdp8->option_eae) {
         printf(" MQ %04o SC %04o", pdp8->mq, pdp8->sc);
-    }    
+    }
     printf(" %s\n", pdp8->run ? "RUN" : "STOP");
     char line[200];
     pdp8_disassemble(pdp8->pc, &pdp8->core[pdp8->pc], pdp8->eae_mode_b, line, sizeof(line));
@@ -391,12 +393,15 @@ static char *halt_reason(pdp8_halt_reason_t halt) {
 
         case PDP8_HALT_CAF_HANG:
             return "CAF unsupported on current CPU";
-            
+
         case PDP8_HALT_FRONT_PANEL:
             return "requested by operator";
 
         case PDP8_HALT_DEVICE_REQUEST:
             return "requested by device";
+
+        case PDP8_HALT_BREAKPOINT:
+            return "hit breakpoint";
 
         default:
             return "unknown reason";
@@ -593,7 +598,7 @@ static void media(char *tail) {
     }
 
     if (load) {
-        devices[dev].load_media(devices[dev].ctx, slot, tokens[2]);        
+        devices[dev].load_media(devices[dev].ctx, slot, tokens[2]);
     } else {
         devices[dev].unload_media(devices[dev].ctx, slot);
     }
@@ -612,14 +617,14 @@ static void trace(char *tail) {
             printf("trace: start requires filename\n");
             return;
         }
-        
+
         unsigned max_size = 0;
         if (n == 3) {
             int cnt;
             if (sscanf(tokens[2], "%u %n", &max_size, &cnt) != 1 || cnt != strlen(tokens[2])) {
                 printf("trace: max trace size must be an unsigned integer\n");
                 return;
-            } 
+            }
         }
 
         if (pdp8_start_tracing(pdp8, tokens[1], max_size) < 0) {
@@ -656,7 +661,7 @@ static void trace(char *tail) {
     }
 }
 
-static void logger(char *tail) { 
+static void logger(char *tail) {
     char *tokens[3];
     int n = parse(tail, tokens, 3);
 
@@ -694,10 +699,120 @@ static void logger(char *tail) {
             printf("log: could not open %s\n", tokens[1]);
         }
     } else if (strcasecmp(sub, "stop") == 0) {
-        logger_close_file();                                
+        logger_close_file();
     }
 }
-    
+
+static void breakpoint(char *tail) {
+    char *tokens[3];
+    int n = parse(tail, tokens, 3);
+    if (n < 1) {
+        printf("breakpoint: invalid arguments\n");
+        return;
+    }
+
+    if (strcasecmp(tokens[0], "set") == 0) {
+        if (n != 2) {
+            printf("breakpoint: set paddr\n");
+            return;
+        }
+
+        int cnt;
+        int paddr;
+        if (
+            sscanf(tokens[1], "%o %n", &paddr, &cnt) != 1 ||
+            cnt != strlen(tokens[1]) ||
+            paddr < 0 || paddr >= 0100000
+        ) {
+            printf("breakpoint: invalid address\n");
+            return;
+        }
+
+        int idx = pdp8_set_breakpoint(pdp8, paddr);
+        if (idx < 0) {
+            printf("breakpoint: too many breakpoints\n");
+        }
+    } else if (strcasecmp(tokens[0], "clear") == 0) {
+        if (n != 2) {
+            printf("breakpoint: clear index\n");
+            return;
+        }
+
+        int cnt;
+        int idx;
+        if (
+            sscanf(tokens[1], "%d %n", &idx, &cnt) != 1 ||
+            cnt != strlen(tokens[1]) ||
+            idx < 0 || idx >= PDP8_MAX_BREAKPOINTS
+        ) {
+            printf("breakpoint: invalid index\n");
+            return;
+        }
+
+        if (pdp8_remove_breakpoint(pdp8, idx) < 0) {
+            printf("breakpoint: %d is not a valid breakpoint\n", idx);
+        }
+    } else if (strcasecmp(tokens[0], "enable") == 0) {
+        if (n != 2) {
+            printf("breakpoint: enable index\n");
+            return;
+        }
+
+        int cnt;
+        int idx;
+        if (
+            sscanf(tokens[1], "%d %n", &idx, &cnt) != 1 ||
+            cnt != strlen(tokens[1]) ||
+            idx < 0 || idx >= PDP8_MAX_BREAKPOINTS
+        ) {
+            printf("breakpoint: invalid index\n");
+            return;
+        }
+
+        if (pdp8_enable_breakpoint(pdp8, idx, 1) < 0) {
+            printf("breakpoint: %d is not a valid breakpoint\n", idx);
+        }
+    } else if (strcasecmp(tokens[0], "disable") == 0) {
+        if (n != 2) {
+            printf("breakpoint: disable index\n");
+            return;
+        }
+
+        int cnt;
+        int idx;
+        if (
+            sscanf(tokens[1], "%d %n", &idx, &cnt) != 1 ||
+            cnt != strlen(tokens[1]) ||
+            idx < 0 || idx >= PDP8_MAX_BREAKPOINTS
+        ) {
+            printf("breakpoint: invalid index\n");
+            return;
+        }
+
+        if (pdp8_enable_breakpoint(pdp8, idx, 0) < 0) {
+            printf("breakpoint: %d is not a valid breakpoint\n", idx);
+        }
+    } else if (strcasecmp(tokens[0], "list") == 0) {
+        if (n != 1) {
+            printf("breakpoint: list\n");
+            return;
+        }
+
+        for (int i = 0; i < PDP8_MAX_BREAKPOINTS; i++) {
+            const pdp8_breakpoint_t *bpt = &pdp8->breakpoints[i];
+            if (!bpt->used) {
+                continue;
+            }
+
+            printf("%2d %05o %s\n", i, bpt->paddr, bpt->enabled ? "enabled" : "disabled");
+        }
+    } else {
+        printf("breakpoint: invalid subcommand\n");
+    }
+}
+
+
+
 static int octal(char **str) {
     int out = 0;
 
@@ -745,7 +860,7 @@ static int parse(char *str, char **tokens, int max_tok) {
             }
             tokens[n++] = str;
 
-            while (*str && *str != '"') 
+            while (*str && *str != '"')
                 str++;
 
             if (!*str) {
@@ -759,11 +874,10 @@ static int parse(char *str, char **tokens, int max_tok) {
         tokens[n++] = str;
         while (*str && !isspace(*str))
             str++;
-        if (*str) 
+        if (*str)
             *str++ = '\0';
     }
 
     tokens[n] = NULL;
     return n;
 }
-
