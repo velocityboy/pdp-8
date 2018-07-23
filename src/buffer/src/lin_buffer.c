@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "lin_buffer.h"
+#include "buffer/lin_buffer.h"
 
 struct lin_buffer_t {
     lb_ptr_t alloc;

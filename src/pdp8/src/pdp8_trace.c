@@ -5,8 +5,8 @@
 #include <string.h>
 
 #include "pdp8_trace.h"
-#include "lin_buffer.h"
-#include "ring_buffer.h"
+#include "buffer/lin_buffer.h"
+#include "buffer/ring_buffer.h"
 
 static const uint32_t INITIAL_TRACE_BUFFER_SIZE = 1024;
 static const uint32_t MIN_BUFFER = INITIAL_TRACE_BUFFER_SIZE;

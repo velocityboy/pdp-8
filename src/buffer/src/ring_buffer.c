@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "ring_buffer.h"
+#include "buffer/ring_buffer.h"
 
 struct ring_buffer_t {
     rb_ptr_t head;

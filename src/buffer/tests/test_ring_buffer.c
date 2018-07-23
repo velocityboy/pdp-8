@@ -2,8 +2,9 @@
 #include <stdio.h>
 #include <string.h>     /* for memset() */
 
-#include "../src/ring_buffer.h"
-#include "tests.h"
+#include "buffer/ring_buffer.h"
+/* TODO factor out test harness */
+#include "../../pdp8/tests/tests.h"
 
 #ifndef MIN
 # define MIN(x,y) ((x) < (y) ? (x) : (y))
