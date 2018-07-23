@@ -198,7 +198,7 @@ extern void pdp8_unschedule(pdp8_t *pdp, void (*callback)(void *), void *ctx);
 extern void pdp8_drain_scheduler(pdp8_t *pdp8);
 
 /* trace facility */
-extern int pdp8_start_tracing(pdp8_t *pdp8, char *tracefile);
+extern int pdp8_start_tracing(pdp8_t *pdp8, char *tracefile, uint32_t max_size);
 extern int pdp8_stop_tracing(pdp8_t *pdp8);
 extern int pdp8_make_trace_listing(pdp8_t *pdp8, char *tracefile, char *listfile);
 

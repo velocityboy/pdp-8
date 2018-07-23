@@ -184,12 +184,12 @@ extern void pdp8_clear(pdp8_t *pdp8) {
     scheduler_clear(pdp8->scheduler);
 }
 
-int pdp8_start_tracing(pdp8_t *pdp8, char *tracefile) {
+int pdp8_start_tracing(pdp8_t *pdp8, char *tracefile, uint32_t max_size) {
     if (pdp8->trace) {
         return PDP8_ERR_BUSY;
     }
 
-    pdp8->trace = pdp8_trace_create(pdp8, TRACE_UNLIMITED);
+    pdp8->trace = pdp8_trace_create(pdp8, max_size);
     pdp8->tracefile = strdup(tracefile);
 
     return 0;

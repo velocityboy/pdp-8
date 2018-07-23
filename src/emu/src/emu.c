@@ -61,7 +61,7 @@ static command_t commands[] = {
     { "registers",  "r",  "display the CPU state", &registers },
     { "set",        "s",  "AC|PC|LINK|RUN|SR %o set register", &set },
     { "step",       "n",  "single step the CPU", &step },
-    { "trace",      "t",  "start filename|stop|list trace-file list-file", &trace },
+    { "trace",      "t",  "start filename [max-size]|stop|list trace-file list-file", &trace },
     { "unassemble", "u",  "xxxxx[-yyyyy] unassemble memory", &unassemble },
     { NULL, NULL, NULL, NULL},
 };
@@ -612,8 +612,17 @@ static void trace(char *tail) {
             printf("trace: start requires filename\n");
             return;
         }
+        
+        unsigned max_size = 0;
+        if (n == 3) {
+            int cnt;
+            if (sscanf(tokens[2], "%u %n", &max_size, &cnt) != 1 || cnt != strlen(tokens[2])) {
+                printf("trace: max trace size must be an unsigned integer\n");
+                return;
+            } 
+        }
 
-        if (pdp8_start_tracing(pdp8, tokens[1]) < 0) {
+        if (pdp8_start_tracing(pdp8, tokens[1], max_size) < 0) {
             printf("trace: already tracing.\n");
             return;
         }
