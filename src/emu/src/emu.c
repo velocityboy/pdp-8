@@ -740,19 +740,31 @@ static void breakpoint(char *tail) {
         return;
     }
 
-    if (strcasecmp(tokens[0], "set") == 0) {
-        if (n != 2) {
+    int paddr = -1;
+    int cnt = 0;
+
+    if (sscanf(tokens[0], "%o %n", &paddr, &cnt) != 1 || cnt != strlen(tokens[0])) {
+        paddr = -1;
+    }
+
+    if ((n == 1 && paddr != -1) || strcasecmp(tokens[0], "set") == 0) {
+        if (paddr == -1 && n != 2) {
             printf("breakpoint: set paddr\n");
             return;
         }
 
-        int cnt;
-        int paddr;
-        if (
-            sscanf(tokens[1], "%o %n", &paddr, &cnt) != 1 ||
-            cnt != strlen(tokens[1]) ||
-            paddr < 0 || paddr >= 0100000
-        ) {
+        int ok = 1;
+        if (n == 2) {
+            ok =
+                sscanf(tokens[1], "%o %n", &paddr, &cnt) == 1 &&
+                cnt == strlen(tokens[1]);
+        }
+
+        if (ok) {
+            ok = paddr >= 0 && paddr < 0100000;
+        }
+
+        if (!ok) {
             printf("breakpoint: invalid address\n");
             return;
         }
