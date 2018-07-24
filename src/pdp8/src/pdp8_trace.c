@@ -323,12 +323,7 @@ static void list_begin_instruction(pdp8_trace_t *trc, int p, FILE *fp, trace_reg
 static void list_end_instruction(pdp8_trace_t *trc, int p, FILE *fp, trace_reg_values_t *reg);
 static void list_memory_changed(pdp8_trace_t *trc, int p, FILE *fp);
 
-int pdp8_trace_save_listing(pdp8_trace_t *trc, char *fn) {
-    FILE *fp = fopen(fn, "wb");
-    if (!fp) {
-        return -1;
-    }
-
+int pdp8_trace_save_listing(pdp8_trace_t *trc, FILE *fp) {
     fprintf(fp, "system has %d words of core\n", (int)trc->core_size);
 
     trace_reg_values_t regs = trc->initial_regs;
@@ -367,14 +362,14 @@ int pdp8_trace_save_listing(pdp8_trace_t *trc, char *fn) {
             default:
                 fprintf(fp, "unrecognized record in trace capture\n");
                 done = 1;
-                break;        }
+                break;
+        }
 
         p = trc->ring ?
             rb_next_event(trc->ring, p, &type, &cnt) :
             lb_next_event(trc->lin, p, &type, &cnt);
     }
 
-    fclose(fp);
     return 0;
 }
 

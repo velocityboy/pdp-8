@@ -63,7 +63,7 @@ static command_t commands[] = {
     { "registers",  "r",  "display the CPU state", &registers },
     { "set",        "s",  "AC|PC|LINK|RUN|SR %o set register", &set },
     { "step",       "n",  "single step the CPU", &step },
-    { "trace",      "t",  "start filename [max-size]|stop|list trace-file list-file", &trace },
+    { "trace",      "t",  "start filename [max-size]|stop|list trace-file list-file|print", &trace },
     { "unassemble", "u",  "xxxxx[-yyyyy] unassemble memory", &unassemble },
     { NULL, NULL, NULL, NULL},
 };
@@ -604,6 +604,8 @@ static void media(char *tail) {
     }
 }
 
+static void trace_start(int n, char **tokens);
+
 static void trace(char *tail) {
     char *tokens[4];
     int n = parse(tail, tokens, 4);
@@ -613,24 +615,7 @@ static void trace(char *tail) {
     }
 
     if (strcmp(tokens[0], "start") == 0) {
-        if (n < 2) {
-            printf("trace: start requires filename\n");
-            return;
-        }
-
-        unsigned max_size = 0;
-        if (n == 3) {
-            int cnt;
-            if (sscanf(tokens[2], "%u %n", &max_size, &cnt) != 1 || cnt != strlen(tokens[2])) {
-                printf("trace: max trace size must be an unsigned integer\n");
-                return;
-            }
-        }
-
-        if (pdp8_start_tracing(pdp8, tokens[1], max_size) < 0) {
-            printf("trace: already tracing.\n");
-            return;
-        }
+        trace_start(n, tokens);
     } else if (strcmp(tokens[0], "stop") == 0) {
         int ret = pdp8_stop_tracing(pdp8);
         switch (ret) {
@@ -653,11 +638,55 @@ static void trace(char *tail) {
             printf("trace: list requires trace-file list-file.\n");
             return;
         }
-        if (pdp8_make_trace_listing(pdp8, tokens[1], tokens[2]) < 0) {
+
+        FILE *fp = fopen(tokens[2], "w");
+        if (!fp) {
+            printf("trace: %s: %s\n", tokens[2], strerror(errno));
+            return;
+        }
+        if (pdp8_make_trace_listing(pdp8, tokens[1], fp) < 0) {
             printf("trace: failed to create listing.\n");
+        }
+        fclose(fp);
+    } else if (strcasecmp(tokens[0], "print") == 0) {
+        if (pdp8_trace_print(pdp8) < 0) {
+            printf("trace: no active trace to print\n");
         }
     } else {
         printf("trace: invalid subcommand %s\n", tokens[0]);
+    }
+}
+
+static void trace_start(int n, char **tokens) {
+    char *fn = NULL;
+    unsigned max_size = 0;
+
+    if (n == 2) {
+        int isnum = 1;
+        for (char *p = tokens[1]; isnum && *p; p++) {
+            isnum = isdigit(*p);
+        }
+
+        if (isnum) {
+            sscanf(tokens[1], "%u", &max_size);
+        } else {
+            fn = tokens[1];
+        }
+    } else if (n == 3) {
+        char *fn  = tokens[1];
+        int cnt;
+        if (sscanf(tokens[2], "%u %n", &max_size, &cnt) != 1 || cnt != strlen(tokens[2])) {
+            printf("trace: max trace size must be an unsigned integer\n");
+            return;
+        }
+    } else {
+        printf("trace: start requires filename\n");
+        return;
+    }
+
+    if (pdp8_start_tracing(pdp8, tokens[1], max_size) < 0) {
+        printf("trace: already tracing.\n");
+        return;
     }
 }
 

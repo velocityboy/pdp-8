@@ -2,6 +2,7 @@
 #define _PDP8_EMULATOR_H_
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include "pdp8/defines.h"
 
@@ -222,7 +223,8 @@ extern void pdp8_drain_scheduler(pdp8_t *pdp8);
 /* trace facility */
 extern int pdp8_start_tracing(pdp8_t *pdp8, char *tracefile, uint32_t max_size);
 extern int pdp8_stop_tracing(pdp8_t *pdp8);
-extern int pdp8_make_trace_listing(pdp8_t *pdp8, char *tracefile, char *listfile);
+extern int pdp8_make_trace_listing(pdp8_t *pdp8, char *tracefile, FILE *fp);
+extern int pdp8_trace_print(pdp8_t *pdp8);
 
 /* breakpoints */
 extern int pdp8_set_breakpoint(pdp8_t *pdp8, uint16_t paddr);

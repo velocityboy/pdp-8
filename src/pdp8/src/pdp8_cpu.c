@@ -190,7 +190,7 @@ int pdp8_start_tracing(pdp8_t *pdp8, char *tracefile, uint32_t max_size) {
     }
 
     pdp8->trace = pdp8_trace_create(pdp8, max_size);
-    pdp8->tracefile = strdup(tracefile);
+    pdp8->tracefile = tracefile ? strdup(tracefile) : NULL;
 
     return 0;
 }
@@ -200,7 +200,7 @@ int pdp8_stop_tracing(pdp8_t *pdp8) {
         return PDP8_ERR_INVALID_ARG;
     }
 
-    if (pdp8_trace_save(pdp8->trace, pdp8->tracefile) < 0) {
+    if (pdp8->tracefile && pdp8_trace_save(pdp8->trace, pdp8->tracefile) < 0) {
         return PDP8_ERR_FILEIO;
     }
 
@@ -213,7 +213,7 @@ int pdp8_stop_tracing(pdp8_t *pdp8) {
     return 0;
 }
 
-int pdp8_make_trace_listing(pdp8_t *pdp8, char *tracefile, char *listfile) {
+int pdp8_make_trace_listing(pdp8_t *pdp8, char *tracefile, FILE *fp) {
     if (pdp8->trace) {
         return PDP8_ERR_BUSY;
     }
@@ -223,13 +223,21 @@ int pdp8_make_trace_listing(pdp8_t *pdp8, char *tracefile, char *listfile) {
         return PDP8_ERR_FILEIO;
     }
 
-    if (pdp8_trace_save_listing(trace, listfile) < 0) {
+    if (pdp8_trace_save_listing(trace, fp) < 0) {
         pdp8_trace_free(trace);
         return PDP8_ERR_FILEIO;
     }
 
     pdp8_trace_free(trace);
     return 0;
+}
+
+extern int pdp8_trace_print(pdp8_t *pdp8) {
+    if (!pdp8->trace) {
+        return PDP8_ERR_INVALID_ARG;
+    }
+
+    return pdp8_trace_save_listing(pdp8->trace, stdout);
 }
 
 int pdp8_set_breakpoint(pdp8_t *pdp8, uint16_t paddr) {
