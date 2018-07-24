@@ -16,6 +16,7 @@ struct ring_buffer_t {
     rb_ptr_t wrend;               /* in last allocated event */
     rb_ptr_t rdstart;
     rb_ptr_t rdend;
+    int opts;
 };
 
 #define EMPTY(rb) ((rb)->head == (rb)->tail)
@@ -29,9 +30,13 @@ struct ring_buffer_t {
 /* tests if `p` is in the open range [s..e) */
 #define BETWEEN(s, e, p) ((s) <= (e) ? (s) <= (p) && (p) < (e) : (s) <= (p) || (p) < (e))
 
-static const uint32_t sig = 0x52423031;           /* RB01 */
+#ifndef MIN
+# define MIN(x,y) ((x) < (y) ? (x) : (y))
+#endif
 
-ring_buffer_t *rb_create(size_t bytes, rb_delete_t del_notify, void *ctx) {
+static const uint32_t sig = 0x52423032;           /* RB02 */
+
+ring_buffer_t *rb_create(size_t bytes, rb_delete_t del_notify, void *ctx, int opts) {
     ring_buffer_t *rb = calloc(1, sizeof(ring_buffer_t));
     if (rb) {
         rb->buf = calloc(1, bytes);
@@ -45,6 +50,7 @@ ring_buffer_t *rb_create(size_t bytes, rb_delete_t del_notify, void *ctx) {
         rb->size = bytes;
         rb->del_notify = del_notify;
         rb->ctx_notify = ctx;
+        rb->opts = opts;
     }
 
     return rb;
@@ -61,7 +67,8 @@ void rb_destroy(ring_buffer_t *rb) {
 #define HDR_HEAD (1)
 #define HDR_TAIL (2)
 #define HDR_SIZE (3)
-#define HDR_CNT (4)
+#define HDR_OPTS (4)
+#define HDR_CNT (5)
 
 int rb_save(ring_buffer_t *rb, FILE *fp) {
     uint32_t hdr[HDR_CNT];
@@ -69,6 +76,7 @@ int rb_save(ring_buffer_t *rb, FILE *fp) {
     hdr[HDR_HEAD] = htonl(rb->head);
     hdr[HDR_TAIL] = htonl(rb->tail);
     hdr[HDR_SIZE] = htonl(rb->size);
+    hdr[HDR_OPTS] = htonl(rb->opts);
 
     if (fwrite(hdr, sizeof(uint32_t), HDR_CNT, fp) != HDR_CNT) {
         return -1;
@@ -105,6 +113,7 @@ ring_buffer_t *rb_load(FILE *fp) {
     rb->head = hdr[HDR_HEAD];
     rb->tail = hdr[HDR_TAIL];
     rb->size = hdr[HDR_SIZE];
+    rb->opts = hdr[HDR_OPTS];
 
     rb->buf = malloc(rb->size);
     if (!rb->buf) {
@@ -120,6 +129,10 @@ ring_buffer_t *rb_load(FILE *fp) {
     return rb;
 }
 
+int rb_max_payload_bytes(ring_buffer_t *rb) {
+    return MIN(rb->size - 3, UINT8_MAX);
+}
+
 
 rb_ptr_t rb_alloc_event(ring_buffer_t *rb, uint8_t type, uint8_t bytes) {
     /* NB bytes doesn't include the leading type and byte count fields.
@@ -133,6 +146,9 @@ rb_ptr_t rb_alloc_event(ring_buffer_t *rb, uint8_t type, uint8_t bytes) {
     rb_ptr_t new_head = (rb->head + 2 + bytes) % rb->size;
 
     while (rb->head != rb->tail && (BETWEEN(rb->head, new_head, rb->tail) || new_head == rb->tail)) {
+        if ((rb->opts & RB_OPT_ALLOC_MAKES_SPACE) == 0) {
+            return RB_NULL;
+        }
         rb_ptr_t type = rb->buf[rb->tail];
         rb->tail = NEXT(rb, rb->tail);
         rb_ptr_t cnt = rb->buf[rb->tail];
@@ -237,6 +253,17 @@ rb_ptr_t rb_next_event(ring_buffer_t *rb, rb_ptr_t p, uint8_t *type, uint8_t *by
     rb->rdend = p;
 
     return dp;
+}
+
+void rb_remove_first_event(ring_buffer_t *rb) {
+    if (rb->head == rb->tail) {
+        return;
+    }
+
+    rb_ptr_t p = NEXT(rb, rb->tail);
+    uint8_t bytes = rb->buf[p];
+    p = NEXT(rb, p);
+    rb->tail = INC(rb, p, bytes);
 }
 
 rb_ptr_t rb_get_uint8(ring_buffer_t *rb, rb_ptr_t p, uint8_t *value) {

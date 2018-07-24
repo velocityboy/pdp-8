@@ -86,7 +86,7 @@ pdp8_trace_t *pdp8_trace_create(struct pdp8_t *pdp8, uint32_t buffer_size) {
     if (buffer_size == TRACE_UNLIMITED) {
         trc->lin = lb_create(INITIAL_TRACE_BUFFER_SIZE);
     } else {
-        trc->ring = rb_create(buffer_size, on_delete, trc);
+        trc->ring = rb_create(buffer_size, on_delete, trc, RB_OPT_ALLOC_MAKES_SPACE);
     }
 
     if (trc->lin == NULL && trc->ring == NULL) {

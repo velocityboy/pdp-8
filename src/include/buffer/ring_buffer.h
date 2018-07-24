@@ -14,10 +14,15 @@ typedef int rb_ptr_t;
 
 typedef void (*rb_delete_t)(void *ctx, uint8_t type, uint8_t len, rb_ptr_t start);
 
-extern ring_buffer_t *rb_create(size_t bytes, rb_delete_t del_notify, void *ctx);
+extern ring_buffer_t *rb_create(size_t bytes, rb_delete_t del_notify, void *ctx, int opts);
+#define RB_OPT_ALLOC_CAN_FAIL      (0000)  /* alloc will fail if queue is full */
+#define RB_OPT_ALLOC_MAKES_SPACE   (0001)  /* alloc will make space if queue is full */
+
 extern void rb_destroy(ring_buffer_t *rb);
 extern int rb_save(ring_buffer_t *rb, FILE *fp);
 extern ring_buffer_t *rb_load(FILE *fp);
+
+extern int rb_max_payload_bytes(ring_buffer_t *rb);
 
 /* Return the start of the event, or a RB_NULL if the buffer isn't
  * big enough. If earlier events have to be dropped and a notify
@@ -41,6 +46,8 @@ extern rb_ptr_t rb_put_uint32(ring_buffer_t *rb, rb_ptr_t p, uint32_t value);
  */
 extern rb_ptr_t rb_first_event(ring_buffer_t *rb, uint8_t *type, uint8_t *bytes);
 extern rb_ptr_t rb_next_event(ring_buffer_t *rb, rb_ptr_t cur_event, uint8_t *type, uint8_t *bytes);
+
+extern void rb_remove_first_event(ring_buffer_t *rb);
 
 /* Gets the given data type at `p' and returns an advanced pointer.
  * Returns RB_NULL if the data would not come from the bounds of the last

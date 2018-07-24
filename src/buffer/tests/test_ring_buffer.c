@@ -11,7 +11,7 @@
 #endif
 
 DECLARE_TEST(rb_empty, "returns RB_NULL if buffer is empty") {
-    ring_buffer_t *rb = rb_create(16, NULL, NULL);
+    ring_buffer_t *rb = rb_create(16, NULL, NULL, RB_OPT_ALLOC_MAKES_SPACE);
 
     uint8_t type = 42;
     uint8_t bytes = 78;
@@ -24,7 +24,7 @@ DECLARE_TEST(rb_empty, "returns RB_NULL if buffer is empty") {
 }
 
 DECLARE_TEST(rb_valid_event, "valid event can be stored and retrieved") {
-    ring_buffer_t *rb = rb_create(16, NULL, NULL);
+    ring_buffer_t *rb = rb_create(16, NULL, NULL, RB_OPT_ALLOC_MAKES_SPACE);
 
     static const uint8_t TYPE = 42;
     static const uint8_t SIZE = sizeof(uint8_t) + sizeof(uint16_t) + sizeof(uint32_t);
@@ -79,7 +79,7 @@ DECLARE_TEST(rb_valid_event, "valid event can be stored and retrieved") {
 }
 
 DECLARE_TEST(rb_multiple_events, "multiple events with no deletions") {
-    ring_buffer_t *rb = rb_create(32, NULL, NULL);
+    ring_buffer_t *rb = rb_create(32, NULL, NULL, RB_OPT_ALLOC_MAKES_SPACE);
 
     rb_ptr_t ev = rb_alloc_event(rb, 1, 1);
     ASSERT_V(ev != RB_NULL, "event allocation succeeded");
@@ -147,7 +147,7 @@ DECLARE_TEST(rb_multiple_events, "multiple events with no deletions") {
 }
 
 DECLARE_TEST(rb_empty_events, "empty events") {
-    ring_buffer_t *rb = rb_create(32, NULL, NULL);
+    ring_buffer_t *rb = rb_create(32, NULL, NULL, RB_OPT_ALLOC_MAKES_SPACE);
 
     rb_ptr_t ev = rb_alloc_event(rb, 1, 1);
     ASSERT_V(ev != RB_NULL, "event allocation succeeded");
@@ -252,7 +252,7 @@ DECLARE_TEST(rb_head_cannot_reach_tail, "tail event is deleted if head would rea
     deletes_t dels;
     memset(&dels, 0, sizeof(dels));
 
-    ring_buffer_t *rb = rb_create(16, &rb_head_cannot_reach_tail_cb, &dels);
+    ring_buffer_t *rb = rb_create(16, &rb_head_cannot_reach_tail_cb, &dels, RB_OPT_ALLOC_MAKES_SPACE);
     dels.rb = rb;
 
     /* there is two byte overhead per event so these should consume 12 bytes */
@@ -272,7 +272,40 @@ DECLARE_TEST(rb_head_cannot_reach_tail, "tail event is deleted if head would rea
 
     uint16_t data = *(uint16_t *)dels.dels[0].bytes;
     ASSERT_V(data == 1, "removed item had correct data");
+}
 
+DECLARE_TEST(rb_alloc_fails, "alloc fails if 'make space' flag is off") {
+    deletes_t dels;
+    memset(&dels, 0, sizeof(dels));
 
+    ring_buffer_t *rb = rb_create(16, &rb_head_cannot_reach_tail_cb, &dels, RB_OPT_ALLOC_CAN_FAIL);
+    dels.rb = rb;
 
+    /* there is two byte overhead per event so these should consume 12 bytes */
+    rb_ptr_t ev[4];
+    for (int i = 0; i < 3; i++) {
+        ev[i] = rb_alloc_event(rb, i+1, sizeof(uint16_t));
+        ASSERT_V(ev[i] != RB_NULL, "allocated event");
+        rb_ptr_t p = rb_put_uint16(rb, ev[i], i+1);
+        ASSERT_V(p != RB_NULL, "populated event");
+    }
+
+    ASSERT_V(dels.cnt == 0, "did not call delete until out of room");
+
+    ev[3] = rb_alloc_event(rb, 4, sizeof(uint16_t));
+    ASSERT_V(ev[3] == RB_NULL, "allocation failed when not enough room");
+
+    rb_remove_first_event(rb);
+
+    ev[3] = rb_alloc_event(rb, 4, sizeof(uint16_t));
+    ASSERT_V(ev[3] != RB_NULL, "allocation succeeds after making room");
+}
+
+DECLARE_TEST(rb_max_payload, "max payload call") {
+    ring_buffer_t *rb = rb_create(16, NULL, NULL, RB_OPT_ALLOC_CAN_FAIL);
+    ASSERT_V(rb_max_payload_bytes(rb) == 13, "small max payload correct");
+    rb_destroy(rb);
+    rb = rb_create(512, NULL, NULL, RB_OPT_ALLOC_CAN_FAIL);
+    ASSERT_V(rb_max_payload_bytes(rb) == 255, "large max payload correct");
+    rb_destroy(rb);
 }
