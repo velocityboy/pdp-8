@@ -76,6 +76,7 @@ struct pdp8_device_t {
  * Breakpoints
  */
 #define PDP8_MAX_BREAKPOINTS 16
+#define PDP8_STEP_BREAKPOINT PDP8_MAX_BREAKPOINTS
 
 typedef struct pdp8_breakpoint_t {
     int used;
@@ -98,6 +99,7 @@ enum pdp8_halt_reason_t {
     PDP8_HALT_FRONT_PANEL,
     PDP8_HALT_DEVICE_REQUEST,
     PDP8_HALT_BREAKPOINT,
+    PDP8_HALT_STEPOVER,
 };
 
 /*
@@ -169,7 +171,7 @@ struct pdp8_t {
      * Breakpoints
      */
     unsigned breakpoint_flags;
-    pdp8_breakpoint_t breakpoints[PDP8_MAX_BREAKPOINTS];
+    pdp8_breakpoint_t breakpoints[PDP8_MAX_BREAKPOINTS + 1];
 
     /*
      * Logging
@@ -230,6 +232,7 @@ extern int pdp8_trace_print(pdp8_t *pdp8);
 extern int pdp8_set_breakpoint(pdp8_t *pdp8, uint16_t paddr);
 extern int pdp8_enable_breakpoint(pdp8_t *pdp8, int bkpt, int enable);
 extern int pdp8_remove_breakpoint(pdp8_t *pdp8, int bkpt);
+extern int pdp8_set_stepover_breakpoint(pdp8_t *pdp8);
 
 /* utilities */
 extern int pdp8_disassemble(uint16_t addr, uint12_t *op, int eae_mode_b, char *decoded, int decoded_size);

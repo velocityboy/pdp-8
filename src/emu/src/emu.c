@@ -27,6 +27,7 @@ static void commandloop(FILE *fp);
 static void unassemble(char *);
 static void registers(char *);
 static void set(char *);
+static void next(char *);
 static void step(char *);
 static void deposit(char *);
 static void examine(char *);
@@ -60,9 +61,10 @@ static command_t commands[] = {
     { "help",       "h",  "display help for all commands", &help },
     { "log",        "l",  "[enable|disable category]|list|start file|stop", &logger },
     { "media",      "m",  "load|unload device [fname]", &media },
+    { "next",       "n",  "single step the CPU (step over JMS)", &next },
     { "registers",  "r",  "display the CPU state", &registers },
-    { "set",        "s",  "AC|PC|LINK|RUN|SR %o set register", &set },
-    { "step",       "n",  "single step the CPU", &step },
+    { "set",        "se", "AC|PC|LINK|RUN|SR %o set register", &set },
+    { "step",       "s",  "single step the CPU (step into JMS)", &step },
     { "trace",      "t",  "start filename [max-size]|stop|list trace-file list-file|print", &trace },
     { "unassemble", "u",  "xxxxx[-yyyyy] unassemble memory", &unassemble },
     { NULL, NULL, NULL, NULL},
@@ -271,6 +273,19 @@ static void registers(char *tail) {
     printf("%s\n", line);
 }
 
+static void next(char *tail) {
+    if (!pdp8->run && pdp8->halt_reason == PDP8_HALT_BREAKPOINT) {
+        pdp8->breakpoint_flags |= PDP8_BPT_MASKED;
+        pdp8->run = 1;
+    }
+    if (pdp8_set_stepover_breakpoint(pdp8) == 0) {
+        go("");
+        return;
+    }
+    pdp8_step(pdp8);
+    registers("");
+}
+
 static void step(char *tail) {
     if (!pdp8->run && pdp8->halt_reason == PDP8_HALT_BREAKPOINT) {
         pdp8->breakpoint_flags |= PDP8_BPT_MASKED;
@@ -451,9 +466,10 @@ static void go(char *args) {
     }
     emu_end_tty(tty);
 
-    if (!pdp8->run) {
+    if (!pdp8->run && pdp8->halt_reason != PDP8_HALT_STEPOVER) {
         printf("\nhalt: %s\n", halt_reason(pdp8->halt_reason));
     }
+    registers("");
 }
 
 static void bootprom(char *tail) {

@@ -15,6 +15,8 @@ static void group_1(uint12_t op, pdp8_t *pdp8);
 static void group_2_and(uint12_t op, pdp8_t *pdp8);
 static void group_2_or(uint12_t op, pdp8_t *pdp8);
 static void cpu_iots(uint12_t op, pdp8_t *pdp8);
+static void update_breakpoint_flags(pdp8_t *pdp8);
+static void remove_stepover_breakpoint(pdp8_t *pdp8);
 
 static pdp8_model_flags_t models[] = {
     {
@@ -266,14 +268,7 @@ int pdp8_enable_breakpoint(pdp8_t *pdp8, int bkpt, int enable) {
 
     bpt->enabled = enable;
 
-    pdp8->breakpoint_flags &= ~PDP8_BPT_ENABLED;
-    for (int i = 0; i < PDP8_MAX_BREAKPOINTS; i++) {
-        bpt = &pdp8->breakpoints[i];
-        if (bpt->used && bpt->enabled) {
-            pdp8->breakpoint_flags |= PDP8_BPT_ENABLED;
-            break;
-        }
-    }
+    update_breakpoint_flags(pdp8);
 
     return 0;
 }
@@ -290,16 +285,62 @@ int pdp8_remove_breakpoint(pdp8_t *pdp8, int bkpt) {
 
     bpt->used = 0;
 
-    pdp8->breakpoint_flags &= ~PDP8_BPT_ENABLED;
-    for (int i = 0; i < PDP8_MAX_BREAKPOINTS; i++) {
-        bpt = &pdp8->breakpoints[i];
-        if (bpt->used && bpt->enabled) {
-            pdp8->breakpoint_flags |= PDP8_BPT_ENABLED;
-            break;
-        }
-    }
+    update_breakpoint_flags(pdp8);
 
     return 0;
+}
+
+int pdp8_set_stepover_breakpoint(pdp8_t *pdp8) {
+    /* NB the breakpoint array is overallocated by one slot to
+     * hold the step breakpoint.
+     *
+     * This case is a little strange. The obvious thing (setting a
+     * breakpoint at PC+1) won't work all the time because it's
+     * a fairly common practice for a subroutine to be able to
+     * skip on return for some conditions like instructions do.
+     * So instead, we set the breakpoint address on the first word
+     * of the routine, where the return address is stored, and
+     * break on a JMP I through that address.
+     */
+     uint12_t opword = pdp8->core[pdp8->ifr | pdp8->pc];
+     if (PDP8_OP(opword) != PDP8_OP_JMS) {
+         return -1;
+     }
+     uint12_t page = pdp8->pc & 07600;
+
+     /* we can't call effective_address here becauyse it changes the cpu
+      * state.
+      */
+     uint16_t addr = PDP8_M_OFFS(opword);
+     if (PDP8_M_ZERO(opword)) {
+         addr |= page;
+     }
+
+     addr |= pdp8->ibr;     /* note ibr because CPU will do ifr <= ibr first */
+
+     /* if addressing is direct, operand is taken using IF */
+     /* if indirect, indirect address is from IF and operand from DF */
+
+     /* bit 3, if set, means indirect */
+     if (PDP8_M_IND(opword)) {
+         /* auto-indexing */
+         uint12_t ea = pdp8->core[addr];
+
+         if ((addr & 07770) == 00010) {
+             ea = INC12(ea);
+         }
+
+         addr = ea | pdp8->dfr;
+     }
+
+     pdp8_breakpoint_t *bpt = &pdp8->breakpoints[PDP8_STEP_BREAKPOINT];
+
+     bpt->used = 1;
+     bpt->enabled = 1;
+     bpt->paddr = addr;
+     pdp8->breakpoint_flags |= PDP8_BPT_ENABLED;
+
+     return 0;
 }
 
 /* all writes should be gated through this */
@@ -421,6 +462,15 @@ void pdp8_step(pdp8_t *pdp8) {
             pdp8->ifr = pdp8->ibr;
             pdp8->pc = effective_address(opword, page, pdp8) & MASK12;
             pdp8->intr_enable_mask &= ~PDP8_INTR_IFR_PENDING;
+            if (
+                pdp8->breakpoints[PDP8_STEP_BREAKPOINT].enabled &&
+                PDP8_M_IND(opword) &&
+                ea == pdp8->breakpoints[PDP8_STEP_BREAKPOINT].paddr
+            ) {
+                pdp8->run = 0;
+                pdp8->halt_reason = PDP8_HALT_STEPOVER;
+                remove_stepover_breakpoint(pdp8);
+            }
             break;
 
         case PDP8_OP_IOT: {
@@ -753,4 +803,22 @@ static void cpu_iots(uint12_t op, pdp8_t *pdp8) {
             break;
         }
     }
+}
+
+static void update_breakpoint_flags(pdp8_t *pdp8) {
+    pdp8->breakpoint_flags &= ~PDP8_BPT_ENABLED;
+    for (int i = 0; i <= PDP8_MAX_BREAKPOINTS; i++) {
+        pdp8_breakpoint_t *bpt = &pdp8->breakpoints[i];
+        if (bpt->used && bpt->enabled) {
+            pdp8->breakpoint_flags |= PDP8_BPT_ENABLED;
+            break;
+        }
+    }
+}
+
+static void remove_stepover_breakpoint(pdp8_t *pdp8) {
+    pdp8_breakpoint_t *bpt = &pdp8->breakpoints[PDP8_STEP_BREAKPOINT];
+    bpt->used = 0;
+    bpt->enabled = 0;
+    update_breakpoint_flags(pdp8);
 }
