@@ -272,6 +272,10 @@ static void registers(char *tail) {
 }
 
 static void step(char *tail) {
+    if (!pdp8->run && pdp8->halt_reason == PDP8_HALT_BREAKPOINT) {
+        pdp8->breakpoint_flags |= PDP8_BPT_MASKED;
+        pdp8->run = 1;
+    }
     pdp8_step(pdp8);
     registers("");
 }
