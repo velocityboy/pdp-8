@@ -95,6 +95,11 @@ int pdp8_console_kbd_byte(pdp8_console_t *con, uint8_t ch) {
 
     logger_log(con->logid, "system sent kbd %03o but device is busy", ch);
 
+    /* TTY return key was CR, ENTER on modern systems is LF */
+    if (ch == '\n') {
+        ch = '\r';
+    }
+
     /* NB TTY and original DECwriter set the high bit on input data */
     con->kbd_buffer = ch | 0200;
 
