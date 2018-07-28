@@ -2,7 +2,7 @@
  * IOT dispatch for KL8-E: TTY/LC8-E: Decwriter interface
  */
 #include <stdlib.h>
- 
+
 #include "pdp8/devices.h"
 #include "pdp8/logger.h"
 
@@ -51,7 +51,7 @@ int pdp8_install_console(pdp8_t *pdp8, pdp8_console_callbacks_t *callbacks, pdp8
 
     dev->kbd_intr_bit = 1 << bit++;
     dev->prt_intr_bit = 1 << bit++;
-    dev->all_bits = 
+    dev->all_bits =
         dev->kbd_intr_bit |
         dev->prt_intr_bit;
 
@@ -61,7 +61,7 @@ int pdp8_install_console(pdp8_t *pdp8, pdp8_console_callbacks_t *callbacks, pdp8
     dev->callbacks = *callbacks;
 
     dev->logid = logger_add_category("TT");
-    
+
     int ret = pdp8_install_device(pdp8, &dev->device);
     if (ret < 0) {
         free(dev);
@@ -79,7 +79,7 @@ static int tty_install(pdp8_device_t *dev, pdp8_t *pdp8) {
         }
     }
 
-    for (int id = 003; id <= 004; id++) {        
+    for (int id = 003; id <= 004; id++) {
         pdp8->device_handlers[id] = dev;
     }
 
@@ -125,7 +125,7 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             pdp8_schedule(pdp8, 20, con->callbacks.kbd_ready, con->callbacks.ctx);
             break;
 
-        case KSF: 
+        case KSF:
             if (con->dev_flags & con->kbd_intr_bit) {
                 logger_log(con->logid, "KSF - skipping");
                 pdp8->pc = INC12(pdp8->pc);
@@ -141,7 +141,7 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             con->pdp8->ac = 0;
             pdp8_schedule(pdp8, 20, con->callbacks.kbd_ready, con->callbacks.ctx);
             break;
-        
+
         case KRS:
             logger_log(con->logid, "KRS - returning %03o", con->kbd_buffer);
             con->pdp8->ac |= con->kbd_buffer;
@@ -194,7 +194,7 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             pdp8_schedule(pdp8, 20, prt_interrupt, con);
             break;
 
-        case TSK:            
+        case TSK:
             if (con->pdp8->intr_mask & (con->prt_intr_bit | con->kbd_intr_bit)) {
                 logger_log(con->logid, "TSK - skipping");
                 pdp8->pc = INC12(pdp8->pc);
@@ -202,7 +202,7 @@ static void tty_dispatch(pdp8_device_t *dev, pdp8_t *pdp8, uint12_t opword) {
             }
             logger_log(con->logid, "TSK - not skipping");
             return;
-        
+
         case TLS:
             logger_log(con->logid, "TLS sending %03o", con->pdp8->ac & 0177);
             con->dev_flags &= ~con->prt_intr_bit;
