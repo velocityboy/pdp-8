@@ -194,7 +194,7 @@ static inline int pdp8_interrupts_enabled(pdp8_t *pdp8) {
 
 extern void pdp8_write_if_safe(pdp8_t *pdp8, uint16_t addr, uint12_t value);
 
-extern pdp8_t *pdp8_create();
+extern pdp8_t *pdp8_create(void);
 extern void pdp8_free(pdp8_t *pdp8);
 
 /* default is PDP8_E */
