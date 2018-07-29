@@ -66,12 +66,8 @@ static int alloc_trace_record(pdp8_trace_t *trc, trace_type_t type, int bytes);
 static void on_delete(void *ctx, uint8_t type, uint8_t len, rb_ptr_t start);
 static void unpack_end_instruction(pdp8_trace_t *trc, int p, trace_reg_values_t *regs);
 
-static inline int put_uint8(pdp8_trace_t *trc, int index, uint8_t data);
-static inline int get_uint8(pdp8_trace_t *trc, int index, uint8_t *data);
 static inline int put_uint16(pdp8_trace_t *trc, int index, uint16_t data);
-static inline int put_uint32(pdp8_trace_t *trc, int index, uint32_t data);
 static inline int get_uint16(pdp8_trace_t *trc, int index, uint16_t *data);
-static inline int get_uint32(pdp8_trace_t *trc, int index, uint32_t *data);
 
 pdp8_trace_t *pdp8_trace_create(struct pdp8_t *pdp8, uint32_t buffer_size) {
     pdp8_trace_t *trc = calloc(1, sizeof(pdp8_trace_t));
@@ -319,6 +315,71 @@ pdp8_trace_t *pdp8_trace_load(char *fn) {
     return trc;
 }
 
+pdp8_trace_t *pdp8_trace_load_from_memory(uint8_t *bytes, size_t length) {
+  if (length < HDR_CNT * sizeof(uint32_t)) {
+    return NULL;
+  }
+  
+  uint32_t *header = (uint32_t *)bytes;
+  bytes += HDR_CNT * sizeof(uint32_t);
+  length -= HDR_CNT * sizeof(uint32_t);
+  
+  for (int i = 0; i < HDR_CNT; i++) {
+    header[i] = ntohl(header[i]);
+  }
+  
+  if (header[HDR_SIG] != SIG) {
+    return NULL;
+  }
+
+  if (length < REG_CNT * sizeof(uint16_t)) {
+    return NULL;
+  }
+
+  uint16_t *regs = (uint16_t *)bytes;
+  bytes += REG_CNT * sizeof(uint16_t);
+  length -= REG_CNT * sizeof(uint16_t);
+
+  for (int i = 0; i < REG_CNT; i++) {
+    regs[i] = ntohs(regs[i]);
+  }
+  
+  pdp8_trace_t *trc = calloc(1, sizeof(pdp8_trace_t));
+  if (trc == NULL) {
+    return trc;
+  }
+  
+  trc->core_size = header[HDR_CORE];
+  
+  if (header[HDR_IS_RING]) {
+    trc->ring = rb_load_from_memory(bytes, &length);
+  } else {
+    trc->lin = lb_load_from_memory(bytes, &length);
+  }
+  
+  if (trc->ring == NULL && trc->lin == NULL) {
+    free(trc);
+    return NULL;
+  }
+  
+  trc->initial_regs.link = (regs[REG_BITS] >> treg_link) & 1;
+  trc->initial_regs.eae_mode_b = (regs[REG_BITS] >> treg_eae_mode_b) & 1;
+  trc->initial_regs.gt = (regs[REG_BITS] >> treg_gt) & 1;
+  trc->initial_regs.ac = regs[REG_AC];
+  trc->initial_regs.sr = regs[REG_SR];
+  trc->initial_regs.mq = regs[REG_MQ];
+  trc->initial_regs.sc = regs[REG_SC];
+  trc->initial_regs.ifr = regs[REG_IFR];
+  trc->initial_regs.dfr = regs[REG_DFR];
+  trc->initial_regs.ibr = regs[REG_IBR];
+  
+  /* loaded traces cannot be modified */
+  trc->locked = 1;
+  
+  return trc;
+}
+
+
 static void list_begin_instruction(pdp8_trace_t *trc, int p, FILE *fp, trace_reg_values_t *reg);
 static void list_end_instruction(pdp8_trace_t *trc, int p, FILE *fp, trace_reg_values_t *reg);
 static void list_memory_changed(pdp8_trace_t *trc, int p, FILE *fp);
@@ -372,8 +433,6 @@ int pdp8_trace_save_listing(pdp8_trace_t *trc, FILE *fp) {
 
     return 0;
 }
-
-static const char *truncated = "\ntrace truncated\n";
 
 static void list_begin_instruction(pdp8_trace_t *trc, int p, FILE *fp, trace_reg_values_t *regs) {
     uint16_t pc;
@@ -450,26 +509,11 @@ static int alloc_trace_record(pdp8_trace_t *trc, trace_type_t type, int bytes) {
     return lb_alloc_event(trc->lin, type, bytes);
 }
 
-static inline int put_uint8(pdp8_trace_t *trc, int index, uint8_t data) {
-    return trc->ring ? rb_put_uint8(trc->ring, index, data) : lb_put_uint8(trc->lin, index, data);
-}
-
-static inline int get_uint8(pdp8_trace_t *trc, int index, uint8_t *data) {
-    return trc->ring ? rb_get_uint8(trc->ring, index, data) : lb_get_uint8(trc->lin, index, data);
-}
-
 static inline int put_uint16(pdp8_trace_t *trc, int index, uint16_t data) {
     return trc->ring ? rb_put_uint16(trc->ring, index, data) : lb_put_uint16(trc->lin, index, data);
-}
-
-static inline int put_uint32(pdp8_trace_t *trc, int index, uint32_t data) {
-    return trc->ring ? rb_put_uint32(trc->ring, index, data) : lb_put_uint32(trc->lin, index, data);
 }
 
 static inline int get_uint16(pdp8_trace_t *trc, int index, uint16_t *data) {
     return trc->ring ? rb_get_uint16(trc->ring, index, data) : lb_get_uint16(trc->lin, index, data);
 }
 
-static inline int get_uint32(pdp8_trace_t *trc, int index, uint32_t *data) {
-    return trc->ring ? rb_get_uint32(trc->ring, index, data) : lb_get_uint32(trc->lin, index, data);
-}

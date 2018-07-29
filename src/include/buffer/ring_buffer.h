@@ -21,6 +21,7 @@ extern ring_buffer_t *rb_create(size_t bytes, rb_delete_t del_notify, void *ctx,
 extern void rb_destroy(ring_buffer_t *rb);
 extern int rb_save(ring_buffer_t *rb, FILE *fp);
 extern ring_buffer_t *rb_load(FILE *fp);
+extern ring_buffer_t *rb_load_from_memory(uint8_t *p, size_t *len);
 
 extern int rb_max_payload_bytes(ring_buffer_t *rb);
 

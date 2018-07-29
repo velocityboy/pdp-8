@@ -16,6 +16,7 @@ extern lin_buffer_t *lb_create(size_t ini_bytes);
 extern void lb_destroy(lin_buffer_t *lb);
 extern int lb_save(lin_buffer_t *lb, FILE *fp);
 extern lin_buffer_t *lb_load(FILE *fp);
+extern lin_buffer_t *lb_load_from_memory(uint8_t *p, size_t *len);
 
 /* Return the start of the event, or an LB_NULL on out of memory.
  */

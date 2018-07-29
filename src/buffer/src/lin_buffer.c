@@ -21,7 +21,7 @@ static const uint32_t sig = 0x4C423031;           /* LB01 */
 lin_buffer_t *lb_create(size_t ini_bytes) {
     lin_buffer_t *lb = calloc(1, sizeof(lin_buffer_t));
     if (lb) {
-        lb->alloc = ini_bytes;
+        lb->alloc = (lb_ptr_t)ini_bytes;
         lb->buf = calloc(1, ini_bytes);
         if (!lb->buf) {
             free(lb);
@@ -94,6 +94,48 @@ lin_buffer_t *lb_load(FILE *fp) {
     }
 
     return lb;
+}
+
+lin_buffer_t *lb_load_from_memory(uint8_t *p, size_t *len) {
+  if (*len < HDR_CNT * sizeof(uint32_t)) {
+    return NULL;
+  }
+  
+  uint32_t *hdr = (uint32_t *)p;
+  *len -= HDR_CNT * sizeof(uint32_t);
+  p += HDR_CNT * sizeof(uint32_t);
+
+  for (int i = 0; i < HDR_CNT; i++) {
+    hdr[i] = ntohl(hdr[i]);
+  }
+  
+  if (hdr[HDR_SIG] != sig) {
+    errno = EINVAL;
+    return NULL;
+  }
+  
+  lin_buffer_t *lb = calloc(1, sizeof(lin_buffer_t));
+  if (!lb) {
+    return NULL;
+  }
+  
+  lb->alloc = lb->used = hdr[HDR_SIZE];
+  
+  lb->buf = malloc(lb->used);
+  if (!lb->buf) {
+    free(lb);
+    return NULL;
+  }
+  
+  if (*len < lb->alloc) {
+    lb_destroy(lb);
+    lb = NULL;
+  }
+  
+  memcpy(lb->buf, p, lb->alloc);
+  *len -= lb->alloc;
+
+  return lb;
 }
 
 lb_ptr_t lb_alloc_event(lin_buffer_t *lb, uint8_t type, uint8_t bytes) {

@@ -16,6 +16,7 @@ extern void pdp8_trace_interrupt(pdp8_trace_t *trc);
 extern void pdp8_trace_memory_write(pdp8_trace_t *trc, uint16_t addr, uint12_t data);
 extern int pdp8_trace_save(pdp8_trace_t *trc, char *fn);
 extern pdp8_trace_t *pdp8_trace_load(char *fn);
+extern pdp8_trace_t *pdp8_trace_load_from_memory(uint8_t *bytes, size_t length);
 extern int pdp8_trace_save_listing(pdp8_trace_t *trc, FILE *fp);
 
 #endif

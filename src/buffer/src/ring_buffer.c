@@ -47,7 +47,7 @@ ring_buffer_t *rb_create(size_t bytes, rb_delete_t del_notify, void *ctx, int op
     }
 
     if (rb) {
-        rb->size = bytes;
+      rb->size = (rb_ptr_t)bytes;
         rb->del_notify = del_notify;
         rb->ctx_notify = ctx;
         rb->opts = opts;
@@ -127,6 +127,51 @@ ring_buffer_t *rb_load(FILE *fp) {
     }
 
     return rb;
+}
+
+ring_buffer_t *rb_load_from_memory(uint8_t *p, size_t *len) {
+  if (*len < HDR_CNT * sizeof(uint32_t)) {
+    return NULL;
+  }
+  
+  uint32_t *hdr = (uint32_t *)p;
+  p += HDR_CNT * sizeof(uint32_t);
+  *len -= HDR_CNT * sizeof(uint32_t);
+  
+  for (int i = 0; i < HDR_CNT; i++) {
+    hdr[i] = ntohl(hdr[i]);
+  }
+  
+  if (hdr[HDR_SIG] != sig) {
+    errno = EINVAL;
+    return NULL;
+  }
+  
+  ring_buffer_t *rb = calloc(1, sizeof(ring_buffer_t));
+  if (!rb) {
+    return NULL;
+  }
+  
+  rb->head = hdr[HDR_HEAD];
+  rb->tail = hdr[HDR_TAIL];
+  rb->size = hdr[HDR_SIZE];
+  rb->opts = hdr[HDR_OPTS];
+  
+  rb->buf = malloc(rb->size);
+  if (!rb->buf) {
+    free(rb);
+    return NULL;
+  }
+  
+  if (*len < rb->size) {
+    rb_destroy(rb);
+    rb = NULL;
+  }
+  
+  memcpy(rb->buf, p, rb->size);
+  *len -= rb->size;
+
+  return rb;
 }
 
 int rb_max_payload_bytes(ring_buffer_t *rb) {
