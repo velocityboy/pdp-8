@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "buffer/ring_buffer.h"
 
@@ -253,6 +254,13 @@ rb_ptr_t rb_put_uint32(ring_buffer_t *rb, rb_ptr_t p, uint32_t value) {
 
     *(uint32_t *)(rb->buf + p) = value;
     return pend;
+}
+
+rb_ptr_t rb_first_index(ring_buffer_t *rb) {
+  if (rb->head == rb->tail) {
+    return RB_NULL;
+  }
+  return rb->tail;
 }
 
 rb_ptr_t rb_first_event(ring_buffer_t *rb, uint8_t *type, uint8_t *bytes) {

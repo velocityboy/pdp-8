@@ -33,6 +33,7 @@ extern lb_ptr_t lb_put_uint32(lin_buffer_t *lb, lb_ptr_t p, uint32_t value);
 /* Get the earliest event in the buffer, or the next event in the buffer.
  * Returns an lb_ptr_t to the event's data or LB_NULL if there is no next event.
  */
+extern lb_ptr_t lb_first_index(lin_buffer_t *lb);
 extern lb_ptr_t lb_first_event(lin_buffer_t *lb, uint8_t *type, uint8_t *bytes);
 extern lb_ptr_t lb_next_event(lin_buffer_t *lb, lb_ptr_t cur_event, uint8_t *type, uint8_t *bytes);
 

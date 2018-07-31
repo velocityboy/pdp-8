@@ -45,6 +45,7 @@ extern rb_ptr_t rb_put_uint32(ring_buffer_t *rb, rb_ptr_t p, uint32_t value);
  * Note that as there is no write locking, interleaving reads and writes
  * is dangerous, and it is up to the caller to guarantee safety.
  */
+extern rb_ptr_t rb_first_index(ring_buffer_t *rb);
 extern rb_ptr_t rb_first_event(ring_buffer_t *rb, uint8_t *type, uint8_t *bytes);
 extern rb_ptr_t rb_next_event(ring_buffer_t *rb, rb_ptr_t cur_event, uint8_t *type, uint8_t *bytes);
 

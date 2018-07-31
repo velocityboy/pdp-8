@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "buffer/lin_buffer.h"
 
@@ -196,6 +197,13 @@ lb_ptr_t lb_put_uint32(lin_buffer_t *lb, lb_ptr_t p, uint32_t value) {
 
     *(uint32_t *)(lb->buf + p) = value;
     return pend;
+}
+
+lb_ptr_t lb_first_index(lin_buffer_t *lb) {
+  if (!lb->used) {
+    return LB_NULL;
+  }
+  return 0;
 }
 
 lb_ptr_t lb_first_event(lin_buffer_t *lb, uint8_t *type, uint8_t *bytes) {

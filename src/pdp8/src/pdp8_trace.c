@@ -12,18 +12,7 @@ static const uint32_t INITIAL_TRACE_BUFFER_SIZE = 1024;
 static const uint32_t MIN_BUFFER = INITIAL_TRACE_BUFFER_SIZE;
 static const uint32_t SIG = 0x54523032;     /* TR02 */
 
-typedef struct trace_reg_values_t {
-    uint12_t ac;
-    unsigned link : 1;
-    unsigned eae_mode_b : 1;
-    unsigned gt : 1;
-    uint12_t sr;
-    uint12_t mq;
-    uint12_t sc;
-    uint16_t ifr;
-    uint16_t dfr;
-    uint16_t ibr;
-} trace_reg_values_t;
+
 
 struct pdp8_trace_t {
     pdp8_t *pdp8;
@@ -32,18 +21,11 @@ struct pdp8_trace_t {
     uint32_t core_size;
     int out_of_memory;
     int locked;
-    trace_reg_values_t initial_regs;
+    pdp8_trace_reg_values_t initial_regs;
 };
 
 #define TRACE_ENABLED(trc) (!((trc)->out_of_memory || (trc)->locked))
 
-typedef enum trace_type_t {
-    trc_out_of_memory,
-    trc_begin_instruction,
-    trc_end_instruction,
-    trc_interrupt,
-    trc_memory_changed,
-} trace_type_t;
 
 typedef enum trace_regs_t {
     /* bitfields */
@@ -61,10 +43,10 @@ typedef enum trace_regs_t {
     treg_word_last,
 } trace_regs_t;
 
-static int alloc_trace_record(pdp8_trace_t *trc, trace_type_t type, int bytes);
+static int alloc_trace_record(pdp8_trace_t *trc, pdp8_trace_type_t type, int bytes);
 
 static void on_delete(void *ctx, uint8_t type, uint8_t len, rb_ptr_t start);
-static void unpack_end_instruction(pdp8_trace_t *trc, int p, trace_reg_values_t *regs);
+static void unpack_end_instruction(pdp8_trace_t *trc, int p, pdp8_trace_reg_values_t *regs);
 
 static inline int put_uint16(pdp8_trace_t *trc, int index, uint16_t data);
 static inline int get_uint16(pdp8_trace_t *trc, int index, uint16_t *data);
@@ -380,14 +362,14 @@ pdp8_trace_t *pdp8_trace_load_from_memory(uint8_t *bytes, size_t length) {
 }
 
 
-static void list_begin_instruction(pdp8_trace_t *trc, int p, FILE *fp, trace_reg_values_t *reg);
-static void list_end_instruction(pdp8_trace_t *trc, int p, FILE *fp, trace_reg_values_t *reg);
+static void list_begin_instruction(pdp8_trace_t *trc, int p, FILE *fp, pdp8_trace_reg_values_t *reg);
+static void list_end_instruction(pdp8_trace_t *trc, int p, FILE *fp, pdp8_trace_reg_values_t *reg);
 static void list_memory_changed(pdp8_trace_t *trc, int p, FILE *fp);
 
 int pdp8_trace_save_listing(pdp8_trace_t *trc, FILE *fp) {
     fprintf(fp, "system has %d words of core\n", (int)trc->core_size);
 
-    trace_reg_values_t regs = trc->initial_regs;
+    pdp8_trace_reg_values_t regs = trc->initial_regs;
 
     uint8_t type;
     uint8_t cnt;
@@ -434,7 +416,7 @@ int pdp8_trace_save_listing(pdp8_trace_t *trc, FILE *fp) {
     return 0;
 }
 
-static void list_begin_instruction(pdp8_trace_t *trc, int p, FILE *fp, trace_reg_values_t *regs) {
+static void list_begin_instruction(pdp8_trace_t *trc, int p, FILE *fp, pdp8_trace_reg_values_t *regs) {
     uint16_t pc;
     p = get_uint16(trc, p, &pc);
 
@@ -447,8 +429,8 @@ static void list_begin_instruction(pdp8_trace_t *trc, int p, FILE *fp, trace_reg
     fprintf(fp, "%s\n", decoded);
 }
 
-static void list_end_instruction(pdp8_trace_t *trc, int p, FILE *fp, trace_reg_values_t *iregs) {
-    trace_reg_values_t regs;
+static void list_end_instruction(pdp8_trace_t *trc, int p, FILE *fp, pdp8_trace_reg_values_t *iregs) {
+    pdp8_trace_reg_values_t regs;
 
     unpack_end_instruction(trc, p, &regs);
 
@@ -485,7 +467,7 @@ static void on_delete(void *ctx, uint8_t type, uint8_t len, rb_ptr_t start) {
     }
 }
 
-static void unpack_end_instruction(pdp8_trace_t *trc, int p, trace_reg_values_t *regs) {
+static void unpack_end_instruction(pdp8_trace_t *trc, int p, pdp8_trace_reg_values_t *regs) {
     uint16_t bitregs;
     p = get_uint16(trc, p, &bitregs);        /* 1 */
     p = get_uint16(trc, p, &regs->ac);       /* 2 */
@@ -501,8 +483,80 @@ static void unpack_end_instruction(pdp8_trace_t *trc, int p, trace_reg_values_t 
     regs->gt = (bitregs >> treg_gt) & 1;
 }
 
+void pdp8_trace_initial_registers(pdp8_trace_t *trc, pdp8_trace_reg_values_t *regs) {
+  *regs = trc->initial_regs;
+}
 
-static int alloc_trace_record(pdp8_trace_t *trc, trace_type_t type, int bytes) {
+int pdp8_trace_first_event_marker(pdp8_trace_t *trc) {
+  return trc->ring ?
+    rb_first_index(trc->ring) :
+    lb_first_index(trc->lin);
+}
+
+int pdp8_trace_next_event(pdp8_trace_t *trc, int marker, pdp8_trace_event_t *ev) {
+  if (marker < 0) {
+    ev->type = trc_end_of_trace;
+    return marker;
+  }
+  
+  int first = marker == (trc->ring ?
+                         rb_first_index(trc->ring) :
+                         lb_first_index(trc->lin));
+  
+  uint8_t type;
+  uint8_t byte;
+
+  if (first) {
+    if (trc->ring) {
+      marker = rb_first_event(trc->ring, &type, &byte);
+    } else {
+      marker = lb_first_event(trc->lin, &type, &byte);
+    }
+  } else {
+    if (trc->ring) {
+      marker = rb_next_event(trc->ring, marker, &type, &byte);
+    } else {
+      marker = lb_next_event(trc->lin, marker, &type, &byte);
+    }
+  }
+  
+  if (marker < 0) {
+    ev->type = trc_end_of_trace;
+    return -1;
+  }
+
+  ev->type = type;
+  int p = marker;
+  switch (type) {
+    case trc_interrupt:
+    case trc_out_of_memory:
+      break;
+      
+    case trc_begin_instruction:
+      p = get_uint16(trc, p, &ev->begin_instruction.pc);
+      p = get_uint16(trc, p, &ev->begin_instruction.opwords[0]);
+      p = get_uint16(trc, p, &ev->begin_instruction.opwords[1]);
+      break;
+      
+    case trc_end_instruction:
+      unpack_end_instruction(trc, marker, &ev->end_instruction);
+      break;
+      
+    case trc_memory_changed:
+      p = get_uint16(trc, p, &ev->memory_changed.addr);
+      p = get_uint16(trc, p, &ev->memory_changed.data);
+      break;
+
+    default:
+      /* unknown event type, flag error */
+      marker = -1;
+      break;
+  }
+  
+  return marker;
+}
+
+static int alloc_trace_record(pdp8_trace_t *trc, pdp8_trace_type_t type, int bytes) {
     if (trc->ring) {
         return rb_alloc_event(trc->ring, type, bytes);
     }
